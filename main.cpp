@@ -7,10 +7,11 @@
 
 const std::vector<const char *> gVulkanLayers = {"VK_LAYER_KHRONOS_validation"};
 const std::vector<const char *> gDeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-
+constexpr uint32_t WIDTH = 1024;
+constexpr uint32_t HEIGHT = 768;
 int main()
 {
-    SAppInfo appInfo(1024, 768, gVulkanLayers, gDeviceExtensions);
+    SAppInfo appInfo(WIDTH, HEIGHT, gVulkanLayers, gDeviceExtensions);
     auto app = CApp(appInfo);
 
     app.Cleanup();

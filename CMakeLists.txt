@@ -26,5 +26,7 @@ list(APPEND LIBS glfw)
 include_directories(ThirdParty/glm)
 include_directories(ThirdParty/loaders)
 
-add_executable(vulkan00 main.cpp window.cpp validationLayer.cpp app.cpp vulkanHelpers.hpp)
+include_directories(src)
+file(GLOB SRC "src/*.cpp")
+add_executable(vulkan00 main.cpp ${SRC})
 target_link_libraries(vulkan00 ${LIBS})
