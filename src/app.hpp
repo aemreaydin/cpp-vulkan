@@ -7,11 +7,14 @@
 #include <vector>
 
 #include "appInfo.hpp"
+
 #include "queueFamilies.hpp"
 #include "swapchainSupportDetails.hpp"
 
 class CValidationLayer;
 class CWindow;
+struct SGraphicsPipelineStates;
+enum class EShaderType;
 
 class CApp
 {
@@ -27,6 +30,9 @@ class CApp
     VkSwapchainKHR m_swapchain;
     std::vector<VkImage> m_images;
     std::vector<VkImageView> m_imageViews;
+    VkPipelineLayout m_pipelineLayout;
+    VkRenderPass m_renderPass;
+    VkPipeline m_graphicsPipeline;
 
     SAppInfo m_appInfo;
     SQueueFamilies m_queueFamilies;
@@ -56,6 +62,13 @@ class CApp
     void CreateSwapchainImages();
     // ImageView creation
     void CreateImageViews();
+    // Graphics Pipeline creation
+    VkShaderModule CreateShaderModule(const std::string &shaderFile);
+    VkPipelineShaderStageCreateInfo CreateShaderPipelineStage(const VkShaderModule &module,
+                                                              const EShaderType shaderType);
+    void CreatePipelineLayout();
+    void CreateRenderPass();
+    void CreateGraphicsPipeline();
     // Surface creation
     void CreateSurface();
 

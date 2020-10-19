@@ -4,6 +4,12 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 
+enum class EShaderType
+{
+    Frag,
+    Vert
+};
+
 class CVulkanHelpers
 {
   public:

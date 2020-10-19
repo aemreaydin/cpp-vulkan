@@ -1,7 +1,11 @@
 #include "app.hpp"
+#include "fileOps.hpp"
+#include "graphicsPipelineStates.hpp"
 #include "validationLayer.hpp"
 #include "vulkanHelpers.hpp"
 #include "window.hpp"
+
+#include <array>
 
 CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
 {
@@ -16,6 +20,7 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     CreateSwapchain();
     CreateSwapchainImages();
     CreateImageViews();
+    CreateGraphicsPipeline();
 }
 
 void CApp::CreateInstance()
@@ -315,16 +320,162 @@ void CApp::CreateImageViews()
     }
 }
 
+VkShaderModule CApp::CreateShaderModule(const std::string &shaderFile)
+{
+    const auto shader = CFileOps::ReadShader(shaderFile);
+
+    VkShaderModuleCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize = shader.size();
+    createInfo.pCode = reinterpret_cast<const uint32_t *>(shader.data());
+
+    VkShaderModule shaderModule;
+    vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule);
+
+    return shaderModule;
+}
+VkPipelineShaderStageCreateInfo CApp::CreateShaderPipelineStage(const VkShaderModule &module,
+                                                                const EShaderType shaderType)
+{
+    VkPipelineShaderStageCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    createInfo.module = module;
+    createInfo.pName = "main";
+    // pSpecializationInfo creates a specialization constant
+    switch (shaderType)
+    {
+    case EShaderType::Frag:
+        createInfo.stage = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+        break;
+    case EShaderType::Vert:
+        createInfo.stage = VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT;
+        break;
+    default:
+        throw std::runtime_error("Shader Type doesn't exist.");
+    }
+
+    return createInfo;
+}
+
+void CApp::CreatePipelineLayout()
+{
+    VkPipelineLayoutCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    createInfo.setLayoutCount = 0;
+    createInfo.pSetLayouts = nullptr;
+    createInfo.pushConstantRangeCount = 0;
+    createInfo.pPushConstantRanges = nullptr;
+
+    if (vkCreatePipelineLayout(m_device, &createInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create pipeline layout.");
+}
+
+void CApp::CreateRenderPass()
+{
+    VkAttachmentDescription description{};
+    description.format = m_format;
+    description.samples = VK_SAMPLE_COUNT_1_BIT;
+    description.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    description.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    description.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    description.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    description.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    description.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference reference{};
+    reference.attachment = 0;
+    reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpassDescription{};
+    subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpassDescription.colorAttachmentCount = 1;
+    subpassDescription.pColorAttachments = &reference;
+
+    VkRenderPassCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    createInfo.attachmentCount = 1;
+    createInfo.pAttachments = &description;
+    createInfo.subpassCount = 1;
+    createInfo.pSubpasses = &subpassDescription;
+
+    if (vkCreateRenderPass(m_device, &createInfo, nullptr, &m_renderPass) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create render pass.");
+}
+
+void CApp::CreateGraphicsPipeline()
+{
+    // Create the shader modules
+    const auto vertModule = CreateShaderModule("../shaders/simpleVertex.spv");
+    const auto vertStageInfo = CreateShaderPipelineStage(vertModule, EShaderType::Vert);
+
+    const auto fragModule = CreateShaderModule("../shaders/simpleFrag.spv");
+    const auto fragStageInfo = CreateShaderPipelineStage(fragModule, EShaderType::Frag);
+
+    const std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{vertStageInfo, fragStageInfo};
+
+    // Create the pipeline layout
+    CreatePipelineLayout();
+
+    // Create the pipeline states
+    VkPipelineColorBlendAttachmentState attachmentState{};
+    attachmentState.blendEnable = VK_FALSE;
+    attachmentState.colorWriteMask =
+        VK_COLOR_COMPONENT_A_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_R_BIT;
+
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = static_cast<float>(m_extent.width);
+    viewport.height = static_cast<float>(m_extent.height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+
+    VkRect2D scissors = {};
+    scissors.extent = m_extent;
+    scissors.offset = {0, 0};
+    const auto graphicsPipelineStates = SGraphicsPipelineStates(attachmentState, viewport, scissors);
+    // Create the renderpass
+    CreateRenderPass();
+
+    // Create the graphics pipeline
+    VkGraphicsPipelineCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    createInfo.stageCount = shaderStages.size();
+    createInfo.pStages = shaderStages.data();
+    createInfo.pVertexInputState = &graphicsPipelineStates.vertexInputState;
+    createInfo.pInputAssemblyState = &graphicsPipelineStates.inputAssemblyState;
+    //    createInfo.pTessellationState
+    createInfo.pViewportState = &graphicsPipelineStates.viewportState;
+    createInfo.pRasterizationState = &graphicsPipelineStates.rasterizationState;
+    createInfo.pMultisampleState = &graphicsPipelineStates.multisampleState;
+    createInfo.pDepthStencilState = &graphicsPipelineStates.depthStencilState;
+    createInfo.pColorBlendState = &graphicsPipelineStates.colorBlendState;
+    createInfo.pDynamicState = &graphicsPipelineStates.dynamicState;
+    createInfo.layout = m_pipelineLayout;
+    createInfo.renderPass = m_renderPass;
+    createInfo.subpass = 0;
+    createInfo.basePipelineHandle = VK_NULL_HANDLE;
+
+    if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &createInfo, nullptr, &m_graphicsPipeline) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create graphics pipeline.");
+    // Destroy the shader modules after they are added to the pipeline
+    vkDestroyShaderModule(m_device, vertModule, nullptr);
+    vkDestroyShaderModule(m_device, fragModule, nullptr);
+}
+
 void CApp::Cleanup()
 {
-    mp_validationLayer->DestroyDebugMessenger(m_instance);
-
+    vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+    vkDestroyRenderPass(m_device, m_renderPass, nullptr);
     for (auto &imageView : m_imageViews)
     {
         vkDestroyImageView(m_device, imageView, nullptr);
     }
     vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
     vkDestroyDevice(m_device, nullptr);
+
+    mp_validationLayer->DestroyDebugMessenger(m_instance);
     vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
     vkDestroyInstance(m_instance, nullptr);
 
