@@ -21,6 +21,7 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     CreateSwapchainImages();
     CreateImageViews();
     CreateGraphicsPipeline();
+    CreateFramebuffers();
 }
 
 void CApp::CreateInstance()
@@ -463,8 +464,33 @@ void CApp::CreateGraphicsPipeline()
     vkDestroyShaderModule(m_device, fragModule, nullptr);
 }
 
+void CApp::CreateFramebuffers()
+{
+    m_framebuffers.resize(m_imageViews.size());
+
+    auto index = 0;
+    for (auto &framebuffer : m_framebuffers)
+    {
+        VkFramebufferCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        createInfo.renderPass = m_renderPass;
+        createInfo.attachmentCount = 1;
+        createInfo.pAttachments = &m_imageViews[index];
+        createInfo.width = m_extent.width;
+        createInfo.height = m_extent.height;
+        createInfo.layers = 1;
+
+        if (vkCreateFramebuffer(m_device, &createInfo, nullptr, &m_framebuffers[index++]) != VK_SUCCESS)
+            throw std::runtime_error("Failed to create framebuffer.");
+    }
+}
+
 void CApp::Cleanup()
 {
+    for (auto &framebuffer : m_framebuffers)
+    {
+        vkDestroyFramebuffer(m_device, framebuffer, nullptr);
+    }
     vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
     vkDestroyRenderPass(m_device, m_renderPass, nullptr);
