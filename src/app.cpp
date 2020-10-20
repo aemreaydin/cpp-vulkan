@@ -22,6 +22,8 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     CreateImageViews();
     CreateGraphicsPipeline();
     CreateFramebuffers();
+    CreateCommandPool();
+    CreateCommandBuffers();
 }
 
 void CApp::CreateInstance()
@@ -241,6 +243,8 @@ void CApp::CreateSwapchain()
     const auto extent = GetOptimalExtent2D();
     const auto format = GetOptimalSurfaceFormat();
     const auto presentMode = GetOptimalPresentMode();
+    uint32_t queueFamilyIndices[]{m_queueFamilies.graphicsFamilyIndex.value(),
+                                  m_queueFamilies.presentFamilyIndex.value()};
 
     // Triple-buffering if possible
     const auto imageCount = std::clamp(m_swapchainSupportDetails.surfaceCapabilities.minImageCount,
@@ -271,8 +275,6 @@ void CApp::CreateSwapchain()
     {
         createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
         createInfo.queueFamilyIndexCount = 2;
-        uint32_t queueFamilyIndices[]{m_queueFamilies.graphicsFamilyIndex.value(),
-                                      m_queueFamilies.presentFamilyIndex.value()};
         createInfo.pQueueFamilyIndices = queueFamilyIndices;
     }
 
@@ -302,7 +304,6 @@ void CApp::CreateImageViews()
     {
         VkImageViewCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        createInfo.pNext = nullptr;
         createInfo.image = image;
         createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         createInfo.format = m_format;
@@ -449,9 +450,9 @@ void CApp::CreateGraphicsPipeline()
     createInfo.pViewportState = &graphicsPipelineStates.viewportState;
     createInfo.pRasterizationState = &graphicsPipelineStates.rasterizationState;
     createInfo.pMultisampleState = &graphicsPipelineStates.multisampleState;
-    createInfo.pDepthStencilState = &graphicsPipelineStates.depthStencilState;
+    //    createInfo.pDepthStencilState = &graphicsPipelineStates.depthStencilState;
     createInfo.pColorBlendState = &graphicsPipelineStates.colorBlendState;
-    createInfo.pDynamicState = &graphicsPipelineStates.dynamicState;
+    //    createInfo.pDynamicState = &graphicsPipelineStates.dynamicState;
     createInfo.layout = m_pipelineLayout;
     createInfo.renderPass = m_renderPass;
     createInfo.subpass = 0;
@@ -471,22 +472,84 @@ void CApp::CreateFramebuffers()
     auto index = 0;
     for (auto &framebuffer : m_framebuffers)
     {
+        VkImageView attachments[] = {m_imageViews[index]};
         VkFramebufferCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         createInfo.renderPass = m_renderPass;
         createInfo.attachmentCount = 1;
-        createInfo.pAttachments = &m_imageViews[index];
+        createInfo.pAttachments = attachments;
         createInfo.width = m_extent.width;
         createInfo.height = m_extent.height;
         createInfo.layers = 1;
 
-        if (vkCreateFramebuffer(m_device, &createInfo, nullptr, &m_framebuffers[index++]) != VK_SUCCESS)
+        if (vkCreateFramebuffer(m_device, &createInfo, nullptr, &m_framebuffers[index]) != VK_SUCCESS)
             throw std::runtime_error("Failed to create framebuffer.");
+
+        index++;
+    }
+}
+
+void CApp::CreateCommandPool()
+{
+    VkCommandPoolCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    createInfo.queueFamilyIndex = m_queueFamilies.graphicsFamilyIndex.value();
+
+    if (vkCreateCommandPool(m_device, &createInfo, nullptr, &m_commandPool) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create command pool.");
+}
+
+void CApp::CreateCommandBuffers()
+{
+    // Allocate command buffers
+    m_commandBuffers.resize(m_framebuffers.size());
+
+    VkCommandBufferAllocateInfo allocateInfo{};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocateInfo.commandPool = m_commandPool;
+    allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocateInfo.commandBufferCount = static_cast<uint32_t>(m_commandBuffers.size());
+
+    if (vkAllocateCommandBuffers(m_device, &allocateInfo, m_commandBuffers.data()) != VK_SUCCESS)
+        throw std::runtime_error("Failed to allocate command buffer.");
+
+    for (auto index = 0; index != m_commandBuffers.size(); ++index)
+    {
+        VkCommandBufferBeginInfo commandBufferBeginInfo{};
+        commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        // Start the command buffer
+        if (vkBeginCommandBuffer(m_commandBuffers[index], &commandBufferBeginInfo) != VK_SUCCESS)
+            throw std::runtime_error("Failed to begin command buffer.");
+
+        // Begin the renderpass
+        VkClearValue clearValue{};
+        clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+        VkRenderPassBeginInfo renderPassBeginInfo;
+        renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassBeginInfo.renderPass = m_renderPass;
+        renderPassBeginInfo.framebuffer = m_framebuffers[index];
+        renderPassBeginInfo.renderArea.offset = {0, 0};
+        renderPassBeginInfo.renderArea.extent = m_extent;
+        renderPassBeginInfo.clearValueCount = 1;
+        renderPassBeginInfo.pClearValues = &clearValue;
+
+        vkCmdBeginRenderPass(m_commandBuffers[index], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        // Bind the graphics pipeline
+        vkCmdBindPipeline(m_commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+        // Draw
+        vkCmdDraw(m_commandBuffers[index], 3, 1, 0, 0);
+
+        vkCmdEndRenderPass(m_commandBuffers[index]);
+
+        if (vkEndCommandBuffer(m_commandBuffers[index]) != VK_SUCCESS)
+            throw std::runtime_error("Failed to end command buffer.");
     }
 }
 
 void CApp::Cleanup()
 {
+    vkDestroyCommandPool(m_device, m_commandPool, nullptr);
     for (auto &framebuffer : m_framebuffers)
     {
         vkDestroyFramebuffer(m_device, framebuffer, nullptr);

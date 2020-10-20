@@ -34,6 +34,8 @@ class CApp
     VkRenderPass m_renderPass;
     VkPipeline m_graphicsPipeline;
     std::vector<VkFramebuffer> m_framebuffers;
+    VkCommandPool m_commandPool;
+    std::vector<VkCommandBuffer> m_commandBuffers;
 
     SAppInfo m_appInfo;
     SQueueFamilies m_queueFamilies;
@@ -72,6 +74,9 @@ class CApp
     void CreateGraphicsPipeline();
     // Framebuffer creation
     void CreateFramebuffers();
+    // Command pool and buffer creation
+    void CreateCommandPool();
+    void CreateCommandBuffers();
     // Surface creation
     void CreateSurface();
 
