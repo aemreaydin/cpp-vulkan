@@ -469,8 +469,7 @@ void CApp::CreateFramebuffers()
 {
     m_framebuffers.resize(m_imageViews.size());
 
-    auto index = 0;
-    for (auto &framebuffer : m_framebuffers)
+    for (auto index = 0; index != m_framebuffers.size(); ++index)
     {
         VkImageView attachments[] = {m_imageViews[index]};
         VkFramebufferCreateInfo createInfo{};
@@ -484,8 +483,6 @@ void CApp::CreateFramebuffers()
 
         if (vkCreateFramebuffer(m_device, &createInfo, nullptr, &m_framebuffers[index]) != VK_SUCCESS)
             throw std::runtime_error("Failed to create framebuffer.");
-
-        index++;
     }
 }
 
@@ -524,7 +521,7 @@ void CApp::CreateCommandBuffers()
         // Begin the renderpass
         VkClearValue clearValue{};
         clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
-        VkRenderPassBeginInfo renderPassBeginInfo;
+        VkRenderPassBeginInfo renderPassBeginInfo{};
         renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassBeginInfo.renderPass = m_renderPass;
         renderPassBeginInfo.framebuffer = m_framebuffers[index];
