@@ -36,6 +36,8 @@ class CApp
     std::vector<VkFramebuffer> m_framebuffers;
     VkCommandPool m_commandPool;
     std::vector<VkCommandBuffer> m_commandBuffers;
+    VkSemaphore m_semaphoreRenderComplete;
+    VkSemaphore m_semaphorePresentComplete;
 
     SAppInfo m_appInfo;
     SQueueFamilies m_queueFamilies;
@@ -79,8 +81,15 @@ class CApp
     void CreateCommandBuffers();
     // Surface creation
     void CreateSurface();
+    // Semaphore creation
+    void CreateSemaphores();
+
+    // Draw Frame
+    void Draw();
 
   public:
     explicit CApp(SAppInfo appInfo);
+
+    void RenderLoop();
     void Cleanup();
 };

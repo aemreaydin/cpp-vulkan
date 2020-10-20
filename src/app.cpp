@@ -24,6 +24,7 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     CreateFramebuffers();
     CreateCommandPool();
     CreateCommandBuffers();
+    CreateSemaphores();
 }
 
 void CApp::CreateInstance()
@@ -243,8 +244,8 @@ void CApp::CreateSwapchain()
     const auto extent = GetOptimalExtent2D();
     const auto format = GetOptimalSurfaceFormat();
     const auto presentMode = GetOptimalPresentMode();
-    uint32_t queueFamilyIndices[]{m_queueFamilies.graphicsFamilyIndex.value(),
-                                  m_queueFamilies.presentFamilyIndex.value()};
+    std::array<uint32_t, 2> queueFamilyIndices{m_queueFamilies.graphicsFamilyIndex.value(),
+                                               m_queueFamilies.presentFamilyIndex.value()};
 
     // Triple-buffering if possible
     const auto imageCount = std::clamp(m_swapchainSupportDetails.surfaceCapabilities.minImageCount,
@@ -274,8 +275,8 @@ void CApp::CreateSwapchain()
     else
     {
         createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-        createInfo.queueFamilyIndexCount = 2;
-        createInfo.pQueueFamilyIndices = queueFamilyIndices;
+        createInfo.queueFamilyIndexCount = queueFamilyIndices.size();
+        createInfo.pQueueFamilyIndices = queueFamilyIndices.data();
     }
 
     if (vkCreateSwapchainKHR(m_device, &createInfo, nullptr, &m_swapchain) != VK_SUCCESS)
@@ -393,12 +394,22 @@ void CApp::CreateRenderPass()
     subpassDescription.colorAttachmentCount = 1;
     subpassDescription.pColorAttachments = &reference;
 
+    VkSubpassDependency subpassDependency{};
+    subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    subpassDependency.dstSubpass = 0;
+    subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    subpassDependency.srcAccessMask = 0;
+    subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
     VkRenderPassCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     createInfo.attachmentCount = 1;
     createInfo.pAttachments = &description;
     createInfo.subpassCount = 1;
     createInfo.pSubpasses = &subpassDescription;
+    createInfo.dependencyCount = 1;
+    createInfo.pDependencies = &subpassDependency;
 
     if (vkCreateRenderPass(m_device, &createInfo, nullptr, &m_renderPass) != VK_SUCCESS)
         throw std::runtime_error("Failed to create render pass.");
@@ -471,12 +482,12 @@ void CApp::CreateFramebuffers()
 
     for (auto index = 0; index != m_framebuffers.size(); ++index)
     {
-        VkImageView attachments[] = {m_imageViews[index]};
+        std::array<VkImageView, 1> attachments = {m_imageViews[index]};
         VkFramebufferCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         createInfo.renderPass = m_renderPass;
-        createInfo.attachmentCount = 1;
-        createInfo.pAttachments = attachments;
+        createInfo.attachmentCount = attachments.size();
+        createInfo.pAttachments = attachments.data();
         createInfo.width = m_extent.width;
         createInfo.height = m_extent.height;
         createInfo.layers = 1;
@@ -544,8 +555,66 @@ void CApp::CreateCommandBuffers()
     }
 }
 
+void CApp::CreateSemaphores()
+{
+    VkSemaphoreCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    if (vkCreateSemaphore(m_device, &createInfo, nullptr, &m_semaphoreRenderComplete) != VK_SUCCESS ||
+        vkCreateSemaphore(m_device, &createInfo, nullptr, &m_semaphorePresentComplete) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create semaphores.");
+}
+
+void CApp::Draw()
+{
+    // get the next image
+    uint32_t imageIndex;
+    vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_semaphoreRenderComplete, VK_NULL_HANDLE, &imageIndex);
+    // start rendering the image by submitting the render
+    std::array<VkPipelineStageFlags, 1> flags{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    std::array<VkSemaphore, 1> waitSemaphores{m_semaphoreRenderComplete};
+    std::array<VkSemaphore, 1> signalSemaphores{m_semaphorePresentComplete};
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = waitSemaphores.size();
+    submitInfo.pWaitSemaphores = waitSemaphores.data();
+    submitInfo.pWaitDstStageMask = flags.data();
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_commandBuffers[imageIndex];
+    submitInfo.signalSemaphoreCount = signalSemaphores.size();
+    submitInfo.pSignalSemaphores = signalSemaphores.data();
+
+    if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create submit queue.");
+
+    // after render finishes start presenting the image
+    std::array<VkSwapchainKHR, 1> swapchains{m_swapchain};
+    VkPresentInfoKHR presentInfoKhr{};
+    presentInfoKhr.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfoKhr.waitSemaphoreCount = signalSemaphores.size();
+    presentInfoKhr.pWaitSemaphores = signalSemaphores.data();
+    presentInfoKhr.swapchainCount = swapchains.size();
+    presentInfoKhr.pSwapchains = swapchains.data();
+    presentInfoKhr.pImageIndices = &imageIndex;
+
+    vkQueuePresentKHR(m_presentQueue, &presentInfoKhr);
+}
+
+void CApp::RenderLoop()
+{
+    while (!glfwWindowShouldClose(mp_window->Window()))
+    {
+        glfwPollEvents();
+        Draw();
+    }
+
+    vkDeviceWaitIdle(m_device);
+}
+
 void CApp::Cleanup()
 {
+    vkDestroySemaphore(m_device, m_semaphoreRenderComplete, nullptr);
+    vkDestroySemaphore(m_device, m_semaphorePresentComplete, nullptr);
+
     vkDestroyCommandPool(m_device, m_commandPool, nullptr);
     for (auto &framebuffer : m_framebuffers)
     {
