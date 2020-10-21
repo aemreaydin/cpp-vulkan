@@ -64,6 +64,9 @@ class CApp
     VkPresentModeKHR GetOptimalPresentMode();
     VkExtent2D GetOptimalExtent2D();
     void CreateSwapchain();
+    void RecreateSwapchain();
+    void CleanupSwapchain();
+    bool ShouldRecreateSwapchain();
     // Image creation
     void CreateSwapchainImages();
     // ImageView creation

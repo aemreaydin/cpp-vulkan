@@ -6,6 +6,10 @@ void ErrorCallback(int error, const char *desc)
     fprintf_s(stderr, "Error %d: %s\n", error, desc);
 }
 
+void FramebufferCallback(GLFWwindow *window, int width, int height)
+{
+}
+
 CWindow::CWindow(const uint32_t width, const uint32_t height) : m_width(width), m_height(height)
 {
     InitWindow();
@@ -21,6 +25,7 @@ void CWindow::InitWindow()
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
     mp_window = glfwCreateWindow(m_width, m_height, "App", nullptr, nullptr);
+    glfwSetFramebufferSizeCallback(mp_window, FramebufferCallback);
 }
 
 void CWindow::Terminate() const

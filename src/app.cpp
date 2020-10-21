@@ -6,6 +6,7 @@
 #include "window.hpp"
 
 #include <array>
+#include <limits>
 
 CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
 {
@@ -225,7 +226,7 @@ VkPresentModeKHR CApp::GetOptimalPresentMode()
 
 VkExtent2D CApp::GetOptimalExtent2D()
 {
-    if (m_swapchainSupportDetails.surfaceCapabilities.currentExtent.width != UINT32_MAX)
+    if (m_swapchainSupportDetails.surfaceCapabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
     {
         return m_swapchainSupportDetails.surfaceCapabilities.currentExtent;
     }
@@ -233,7 +234,10 @@ VkExtent2D CApp::GetOptimalExtent2D()
     const auto minExtent = m_swapchainSupportDetails.surfaceCapabilities.minImageExtent;
     const auto maxExtent = m_swapchainSupportDetails.surfaceCapabilities.maxImageExtent;
 
-    VkExtent2D extent{m_appInfo.width, m_appInfo.height};
+    auto width = 0;
+    auto height = 0;
+    glfwGetFramebufferSize(mp_window->Window(), &width, &height);
+    VkExtent2D extent{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
     extent.width = std::clamp(extent.width, minExtent.width, maxExtent.width);
     extent.height = std::clamp(extent.height, minExtent.height, maxExtent.height);
 
@@ -285,6 +289,47 @@ void CApp::CreateSwapchain()
 
     m_extent = extent;
     m_format = format.format;
+}
+void CApp::RecreateSwapchain()
+{
+    vkDeviceWaitIdle(m_device);
+
+    CleanupSwapchain();
+
+    GetSwapchainSupportDetails(m_physicalDevice);
+    CreateSwapchain();
+    CreateSwapchainImages();
+    CreateImageViews();
+    CreateGraphicsPipeline();
+    CreateFramebuffers();
+    CreateCommandBuffers();
+}
+
+void CApp::CleanupSwapchain()
+{
+    for (auto &framebuffer : m_framebuffers)
+    {
+        vkDestroyFramebuffer(m_device, framebuffer, nullptr);
+    }
+    vkFreeCommandBuffers(m_device, m_commandPool, m_commandBuffers.size(), m_commandBuffers.data());
+
+    vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+    vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+    for (auto &imageView : m_imageViews)
+    {
+        vkDestroyImageView(m_device, imageView, nullptr);
+    }
+    vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+}
+
+bool CApp::ShouldRecreateSwapchain()
+{
+    auto width = 0;
+    auto height = 0;
+    glfwGetFramebufferSize(mp_window->Window(), &width, &height);
+
+    return static_cast<uint32_t>(width) != m_extent.width || static_cast<uint32_t>(height) != m_extent.height;
 }
 
 void CApp::CreateSwapchainImages()
@@ -583,7 +628,17 @@ void CApp::Draw()
 {
     // get the next image
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_semaphoreRenderComplete, VK_NULL_HANDLE, &imageIndex);
+    const auto acquireRes = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_semaphoreRenderComplete,
+                                                  VK_NULL_HANDLE, &imageIndex);
+    if (acquireRes == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        RecreateSwapchain();
+        return;
+    }
+    else if (acquireRes != VK_SUCCESS && acquireRes != VK_SUBOPTIMAL_KHR)
+    {
+        throw std::runtime_error("Failed to acquire next image.");
+    }
     // Wait for the current fence
     vkWaitForFences(m_device, 1, &m_fences[imageIndex], VK_TRUE, UINT64_MAX);
     vkResetFences(m_device, 1, &m_fences[imageIndex]);
@@ -603,7 +658,7 @@ void CApp::Draw()
     submitInfo.pSignalSemaphores = signalSemaphores.data();
 
     if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[imageIndex]) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create submit queue.");
+        throw std::runtime_error("Failed to submit queue.");
 
     // after render finishes start presenting the image
     std::array<VkSwapchainKHR, 1> swapchains{m_swapchain};
@@ -615,7 +670,14 @@ void CApp::Draw()
     presentInfoKhr.pSwapchains = swapchains.data();
     presentInfoKhr.pImageIndices = &imageIndex;
 
-    vkQueuePresentKHR(m_presentQueue, &presentInfoKhr);
+    const auto presentRes = vkQueuePresentKHR(m_presentQueue, &presentInfoKhr);
+    if (presentRes == VK_ERROR_OUT_OF_DATE_KHR || presentRes == VK_SUBOPTIMAL_KHR || ShouldRecreateSwapchain())
+    {
+        RecreateSwapchain();
+        return;
+    }
+    else if (presentRes != VK_SUCCESS)
+        throw std::runtime_error("Failed to present image");
 }
 
 void CApp::RenderLoop()
@@ -638,19 +700,9 @@ void CApp::Cleanup()
     vkDestroySemaphore(m_device, m_semaphoreRenderComplete, nullptr);
     vkDestroySemaphore(m_device, m_semaphorePresentComplete, nullptr);
 
+    CleanupSwapchain();
     vkDestroyCommandPool(m_device, m_commandPool, nullptr);
-    for (auto &framebuffer : m_framebuffers)
-    {
-        vkDestroyFramebuffer(m_device, framebuffer, nullptr);
-    }
-    vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
-    vkDestroyRenderPass(m_device, m_renderPass, nullptr);
-    for (auto &imageView : m_imageViews)
-    {
-        vkDestroyImageView(m_device, imageView, nullptr);
-    }
-    vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+
     vkDestroyDevice(m_device, nullptr);
 
     mp_validationLayer->DestroyDebugMessenger(m_instance);
