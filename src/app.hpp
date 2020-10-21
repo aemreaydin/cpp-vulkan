@@ -10,6 +10,7 @@
 
 #include "queueFamilies.hpp"
 #include "swapchainSupportDetails.hpp"
+#include "vertex.hpp"
 
 class CValidationLayer;
 class CWindow;
@@ -39,6 +40,8 @@ class CApp
     VkSemaphore m_semaphoreRenderComplete = VK_NULL_HANDLE;
     VkSemaphore m_semaphorePresentComplete = VK_NULL_HANDLE;
     std::vector<VkFence> m_fences;
+    VkBuffer m_vertexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_vertexMemory = VK_NULL_HANDLE;
 
     SAppInfo m_appInfo;
     SQueueFamilies m_queueFamilies;
@@ -46,6 +49,11 @@ class CApp
 
     std::unique_ptr<CValidationLayer> mp_validationLayer;
     std::unique_ptr<CWindow> mp_window;
+
+    std::vector<SVertex> m_vertices = {{{0.0f, -0.5f, 0.0f}, {1.0f, 0.0f, 1.0f, 1.0f}},
+                                       {{0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 0.0f, 1.0f}},
+                                       {{-0.5f, 0.5f, 0.0f}, {0.0f, 1.0f, 1.0f, 1.0f}}};
+    VkDeviceSize m_verticesSize = sizeof(SVertex) * m_vertices.size();
 
     // Instance creation
     void CreateInstance();
@@ -71,6 +79,9 @@ class CApp
     void CreateSwapchainImages();
     // ImageView creation
     void CreateImageViews();
+    // Vertex and Index Buffer creation
+    void CreateVertexBuffer();
+    void CreateVertexMemory();
     // Graphics Pipeline creation
     VkShaderModule CreateShaderModule(const std::string &shaderFile);
     VkPipelineShaderStageCreateInfo CreateShaderPipelineStage(const VkShaderModule &module,
@@ -83,6 +94,8 @@ class CApp
     // Command pool and buffer creation
     void CreateCommandPool();
     void CreateCommandBuffers();
+
+    uint32_t FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags flags);
     // Surface creation
     void CreateSurface();
     // Semaphore creation

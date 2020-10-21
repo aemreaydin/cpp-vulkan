@@ -21,6 +21,8 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     CreateSwapchain();
     CreateSwapchainImages();
     CreateImageViews();
+    CreateVertexBuffer();
+    CreateVertexMemory();
     CreateGraphicsPipeline();
     CreateFramebuffers();
     CreateCommandPool();
@@ -461,6 +463,58 @@ void CApp::CreateRenderPass()
         throw std::runtime_error("Failed to create render pass.");
 }
 
+void CApp::CreateVertexBuffer()
+{
+    VkBufferCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    createInfo.size = m_verticesSize;
+    createInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    createInfo.queueFamilyIndexCount = 1;
+    createInfo.pQueueFamilyIndices = &m_queueFamilies.graphicsFamilyIndex.value();
+
+    if (vkCreateBuffer(m_device, &createInfo, nullptr, &m_vertexBuffer) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create buffer.");
+}
+
+void CApp::CreateVertexMemory()
+{
+    VkMemoryRequirements memReq;
+    vkGetBufferMemoryRequirements(m_device, m_vertexBuffer, &memReq);
+
+    const auto memoryType = FindMemoryType(memReq.memoryTypeBits,
+                                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    VkMemoryAllocateInfo allocateInfo{};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocateInfo.allocationSize = memReq.size;
+    allocateInfo.memoryTypeIndex = memoryType;
+
+    if (vkAllocateMemory(m_device, &allocateInfo, nullptr, &m_vertexMemory) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create vertex memory.");
+
+    if (vkBindBufferMemory(m_device, m_vertexBuffer, m_vertexMemory, 0) != VK_SUCCESS)
+        throw std::runtime_error("Failed to bind vertex buffer to memory.");
+
+    void *data;
+    vkMapMemory(m_device, m_vertexMemory, 0, m_verticesSize, 0, &data);
+    memcpy(data, m_vertices.data(), m_verticesSize);
+    vkUnmapMemory(m_device, m_vertexMemory);
+}
+
+uint32_t CApp::FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags flags)
+{
+    VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
+    vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &deviceMemoryProperties);
+
+    for (auto i = 0; i != deviceMemoryProperties.memoryTypeCount; ++i)
+    {
+        if (memoryTypeBits & (1 << i) && (deviceMemoryProperties.memoryTypes[i].propertyFlags & flags) == flags)
+            return i;
+    }
+    throw std::runtime_error("Failed to find a suitable memory type.");
+}
+
 void CApp::CreateGraphicsPipeline()
 {
     // Create the shader modules
@@ -492,7 +546,11 @@ void CApp::CreateGraphicsPipeline()
     VkRect2D scissors = {};
     scissors.extent = m_extent;
     scissors.offset = {0, 0};
-    const auto graphicsPipelineStates = SGraphicsPipelineStates(attachmentState, viewport, scissors);
+
+    const auto inputBindingsDesc = SVertex::GetInputBindingDescription();
+    const auto attributeDesc = SVertex::GetAttributeBindingDescription();
+    const auto graphicsPipelineStates =
+        SGraphicsPipelineStates(attachmentState, viewport, scissors, inputBindingsDesc, attributeDesc);
     // Create the renderpass
     CreateRenderPass();
 
@@ -507,9 +565,9 @@ void CApp::CreateGraphicsPipeline()
     createInfo.pViewportState = &graphicsPipelineStates.viewportState;
     createInfo.pRasterizationState = &graphicsPipelineStates.rasterizationState;
     createInfo.pMultisampleState = &graphicsPipelineStates.multisampleState;
-    //    createInfo.pDepthStencilState = &graphicsPipelineStates.depthStencilState;
+    createInfo.pDepthStencilState = &graphicsPipelineStates.depthStencilState;
     createInfo.pColorBlendState = &graphicsPipelineStates.colorBlendState;
-    //    createInfo.pDynamicState = &graphicsPipelineStates.dynamicState;
+    createInfo.pDynamicState = &graphicsPipelineStates.dynamicState;
     createInfo.layout = m_pipelineLayout;
     createInfo.renderPass = m_renderPass;
     createInfo.subpass = 0;
@@ -591,8 +649,14 @@ void CApp::CreateCommandBuffers()
 
         // Bind the graphics pipeline
         vkCmdBindPipeline(m_commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+
+        // Bind the vertex buffer
+        VkBuffer buffers[] = {m_vertexBuffer};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(m_commandBuffers[index], 0, 1, buffers, offsets);
+
         // Draw
-        vkCmdDraw(m_commandBuffers[index], 3, 1, 0, 0);
+        vkCmdDraw(m_commandBuffers[index], m_vertices.size(), 1, 0, 0);
 
         vkCmdEndRenderPass(m_commandBuffers[index]);
 
@@ -700,6 +764,8 @@ void CApp::Cleanup()
     vkDestroySemaphore(m_device, m_semaphoreRenderComplete, nullptr);
     vkDestroySemaphore(m_device, m_semaphorePresentComplete, nullptr);
 
+    vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
+    vkFreeMemory(m_device, m_vertexMemory, nullptr);
     CleanupSwapchain();
     vkDestroyCommandPool(m_device, m_commandPool, nullptr);
 
