@@ -25,6 +25,7 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     CreateCommandPool();
     CreateCommandBuffers();
     CreateSemaphores();
+    CreateFences();
 }
 
 void CApp::CreateInstance()
@@ -564,11 +565,29 @@ void CApp::CreateSemaphores()
         throw std::runtime_error("Failed to create semaphores.");
 }
 
+void CApp::CreateFences()
+{
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    m_fences.resize(m_images.size());
+    for (auto &fence : m_fences)
+    {
+        if (vkCreateFence(m_device, &fenceInfo, nullptr, &fence) != VK_SUCCESS)
+            throw std::runtime_error("Failed to create fences.");
+    }
+}
+
 void CApp::Draw()
 {
     // get the next image
     uint32_t imageIndex;
     vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_semaphoreRenderComplete, VK_NULL_HANDLE, &imageIndex);
+    // Wait for the current fence
+    vkWaitForFences(m_device, 1, &m_fences[imageIndex], VK_TRUE, UINT64_MAX);
+    vkResetFences(m_device, 1, &m_fences[imageIndex]);
+
     // start rendering the image by submitting the render
     std::array<VkPipelineStageFlags, 1> flags{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     std::array<VkSemaphore, 1> waitSemaphores{m_semaphoreRenderComplete};
@@ -583,7 +602,7 @@ void CApp::Draw()
     submitInfo.signalSemaphoreCount = signalSemaphores.size();
     submitInfo.pSignalSemaphores = signalSemaphores.data();
 
-    if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+    if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_fences[imageIndex]) != VK_SUCCESS)
         throw std::runtime_error("Failed to create submit queue.");
 
     // after render finishes start presenting the image
@@ -612,6 +631,10 @@ void CApp::RenderLoop()
 
 void CApp::Cleanup()
 {
+    for (auto &fence : m_fences)
+    {
+        vkDestroyFence(m_device, fence, nullptr);
+    }
     vkDestroySemaphore(m_device, m_semaphoreRenderComplete, nullptr);
     vkDestroySemaphore(m_device, m_semaphorePresentComplete, nullptr);
 

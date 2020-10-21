@@ -19,25 +19,26 @@ enum class EShaderType;
 class CApp
 {
   private:
-    VkInstance m_instance;
-    VkPhysicalDevice m_physicalDevice;
-    VkDevice m_device;
-    VkQueue m_graphicsQueue;
-    VkQueue m_presentQueue;
-    VkSurfaceKHR m_surface;
+    VkInstance m_instance = VK_NULL_HANDLE;
+    VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
+    VkDevice m_device = VK_NULL_HANDLE;
+    VkQueue m_graphicsQueue = VK_NULL_HANDLE;
+    VkQueue m_presentQueue = VK_NULL_HANDLE;
+    VkSurfaceKHR m_surface = VK_NULL_HANDLE;
     VkFormat m_format;
     VkExtent2D m_extent;
-    VkSwapchainKHR m_swapchain;
+    VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
     std::vector<VkImage> m_images;
     std::vector<VkImageView> m_imageViews;
-    VkPipelineLayout m_pipelineLayout;
-    VkRenderPass m_renderPass;
-    VkPipeline m_graphicsPipeline;
+    VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
+    VkRenderPass m_renderPass = VK_NULL_HANDLE;
+    VkPipeline m_graphicsPipeline = VK_NULL_HANDLE;
     std::vector<VkFramebuffer> m_framebuffers;
-    VkCommandPool m_commandPool;
+    VkCommandPool m_commandPool = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> m_commandBuffers;
-    VkSemaphore m_semaphoreRenderComplete;
-    VkSemaphore m_semaphorePresentComplete;
+    VkSemaphore m_semaphoreRenderComplete = VK_NULL_HANDLE;
+    VkSemaphore m_semaphorePresentComplete = VK_NULL_HANDLE;
+    std::vector<VkFence> m_fences;
 
     SAppInfo m_appInfo;
     SQueueFamilies m_queueFamilies;
@@ -83,7 +84,7 @@ class CApp
     void CreateSurface();
     // Semaphore creation
     void CreateSemaphores();
-
+    void CreateFences();
     // Draw Frame
     void Draw();
 
