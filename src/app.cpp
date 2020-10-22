@@ -22,7 +22,6 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     CreateSwapchainImages();
     CreateImageViews();
     CreateCommandPool();
-    CreateStagingCommandPool();
     CreateGraphicsPipeline();
     CreateFramebuffers();
     CreateVertexBuffer();
@@ -125,11 +124,6 @@ void CApp::CreatePhysicalDevice()
                 m_queueFamilies.graphicsFamilyIndex = index;
             }
 
-            if (family.queueFlags & VK_QUEUE_TRANSFER_BIT && m_queueFamilies.graphicsFamilyIndex != index)
-            {
-                m_queueFamilies.transferFamilyIndex = index;
-            }
-
             VkBool32 isSupported;
             vkGetPhysicalDeviceSurfaceSupportKHR(device, index, m_surface, &isSupported);
             if (isSupported)
@@ -185,7 +179,6 @@ void CApp::CreateQueues()
     // Graphics Queue
     vkGetDeviceQueue(m_device, m_queueFamilies.graphicsFamilyIndex.value(), 0, &m_graphicsQueue);
     vkGetDeviceQueue(m_device, m_queueFamilies.presentFamilyIndex.value(), 0, &m_presentQueue);
-    vkGetDeviceQueue(m_device, m_queueFamilies.transferFamilyIndex.value(), 0, &m_transferQueue);
 }
 
 void CApp::GetSwapchainSupportDetails(const VkPhysicalDevice &device)
@@ -474,15 +467,13 @@ void CApp::CreateRenderPass()
 void CApp::CreateBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size,
                         VkBuffer &buffer, VkDeviceMemory &memory)
 {
-    std::array<uint32_t, 2> familyIndices{m_queueFamilies.graphicsFamilyIndex.value(),
-                                          m_queueFamilies.transferFamilyIndex.value()};
     VkBufferCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     createInfo.size = size;
     createInfo.usage = usageFlags;
-    createInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
-    createInfo.queueFamilyIndexCount = familyIndices.size();
-    createInfo.pQueueFamilyIndices = familyIndices.data();
+    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    createInfo.queueFamilyIndexCount = 1;
+    createInfo.pQueueFamilyIndices = &m_queueFamilies.graphicsFamilyIndex.value();
 
     if (vkCreateBuffer(m_device, &createInfo, nullptr, &buffer) != VK_SUCCESS)
         throw std::runtime_error("Failed to create buffer.");
@@ -509,7 +500,7 @@ void CApp::CopyBuffer(VkBuffer &src, VkBuffer &dst, VkDeviceSize size)
     VkCommandBufferAllocateInfo allocateInfo{};
     allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocateInfo.commandBufferCount = 1;
-    allocateInfo.commandPool = m_stagingCommandPool;
+    allocateInfo.commandPool = m_commandPool;
     allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
     VkCommandBuffer stagingCmd;
@@ -534,10 +525,10 @@ void CApp::CopyBuffer(VkBuffer &src, VkBuffer &dst, VkDeviceSize size)
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &stagingCmd;
 
-    vkQueueSubmit(m_transferQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(m_transferQueue);
+    vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_graphicsQueue);
 
-    vkFreeCommandBuffers(m_device, m_stagingCommandPool, 1, &stagingCmd);
+    vkFreeCommandBuffers(m_device, m_commandPool, 1, &stagingCmd);
 }
 
 void CApp::CreateVertexBuffer()
@@ -691,16 +682,6 @@ void CApp::CreateCommandPool()
 
     if (vkCreateCommandPool(m_device, &createInfo, nullptr, &m_commandPool) != VK_SUCCESS)
         throw std::runtime_error("Failed to create command pool.");
-}
-
-void CApp::CreateStagingCommandPool()
-{
-    VkCommandPoolCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    createInfo.queueFamilyIndex = m_queueFamilies.transferFamilyIndex.value();
-
-    if (vkCreateCommandPool(m_device, &createInfo, nullptr, &m_stagingCommandPool) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create staging command pool.");
 }
 
 void CApp::CreateCommandBuffers()
@@ -865,7 +846,6 @@ void CApp::Cleanup()
     vkFreeMemory(m_device, m_vertexMemory, nullptr);
     CleanupSwapchain();
     vkDestroyCommandPool(m_device, m_commandPool, nullptr);
-    vkDestroyCommandPool(m_device, m_stagingCommandPool, nullptr);
 
     vkDestroyDevice(m_device, nullptr);
 

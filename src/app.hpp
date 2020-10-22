@@ -25,7 +25,6 @@ class CApp
     VkDevice m_device = VK_NULL_HANDLE;
     VkQueue m_graphicsQueue = VK_NULL_HANDLE;
     VkQueue m_presentQueue = VK_NULL_HANDLE;
-    VkQueue m_transferQueue = VK_NULL_HANDLE;
     VkSurfaceKHR m_surface = VK_NULL_HANDLE;
     VkFormat m_format;
     VkExtent2D m_extent;
@@ -37,7 +36,6 @@ class CApp
     VkPipeline m_graphicsPipeline = VK_NULL_HANDLE;
     std::vector<VkFramebuffer> m_framebuffers;
     VkCommandPool m_commandPool = VK_NULL_HANDLE;
-    VkCommandPool m_stagingCommandPool = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> m_commandBuffers;
     VkSemaphore m_semaphoreRenderComplete = VK_NULL_HANDLE;
     VkSemaphore m_semaphorePresentComplete = VK_NULL_HANDLE;
@@ -103,7 +101,6 @@ class CApp
     void CreateFramebuffers();
     // Command pool and buffer creation
     void CreateCommandPool();
-    void CreateStagingCommandPool();
     void CreateCommandBuffers();
 
     uint32_t FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags flags);
