@@ -21,11 +21,12 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     CreateSwapchain();
     CreateSwapchainImages();
     CreateImageViews();
-    CreateVertexBuffer();
-    CreateVertexMemory();
+    CreateCommandPool();
+    CreateStagingCommandPool();
     CreateGraphicsPipeline();
     CreateFramebuffers();
-    CreateCommandPool();
+    CreateVertexBuffer();
+    CreateIndexBuffer();
     CreateCommandBuffers();
     CreateSemaphores();
     CreateFences();
@@ -124,6 +125,11 @@ void CApp::CreatePhysicalDevice()
                 m_queueFamilies.graphicsFamilyIndex = index;
             }
 
+            if (family.queueFlags & VK_QUEUE_TRANSFER_BIT && m_queueFamilies.graphicsFamilyIndex != index)
+            {
+                m_queueFamilies.transferFamilyIndex = index;
+            }
+
             VkBool32 isSupported;
             vkGetPhysicalDeviceSurfaceSupportKHR(device, index, m_surface, &isSupported);
             if (isSupported)
@@ -160,6 +166,7 @@ void CApp::CreateDevice()
         queueCreateInfos.push_back(queueCreateInfo);
     }
     VkPhysicalDeviceFeatures features{};
+    features.fillModeNonSolid = VK_TRUE;
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     createInfo.pNext = nullptr;
@@ -178,6 +185,7 @@ void CApp::CreateQueues()
     // Graphics Queue
     vkGetDeviceQueue(m_device, m_queueFamilies.graphicsFamilyIndex.value(), 0, &m_graphicsQueue);
     vkGetDeviceQueue(m_device, m_queueFamilies.presentFamilyIndex.value(), 0, &m_presentQueue);
+    vkGetDeviceQueue(m_device, m_queueFamilies.transferFamilyIndex.value(), 0, &m_transferQueue);
 }
 
 void CApp::GetSwapchainSupportDetails(const VkPhysicalDevice &device)
@@ -463,43 +471,117 @@ void CApp::CreateRenderPass()
         throw std::runtime_error("Failed to create render pass.");
 }
 
-void CApp::CreateVertexBuffer()
+void CApp::CreateBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size,
+                        VkBuffer &buffer, VkDeviceMemory &memory)
 {
+    std::array<uint32_t, 2> familyIndices{m_queueFamilies.graphicsFamilyIndex.value(),
+                                          m_queueFamilies.transferFamilyIndex.value()};
     VkBufferCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    createInfo.size = m_verticesSize;
-    createInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    createInfo.queueFamilyIndexCount = 1;
-    createInfo.pQueueFamilyIndices = &m_queueFamilies.graphicsFamilyIndex.value();
+    createInfo.size = size;
+    createInfo.usage = usageFlags;
+    createInfo.sharingMode = VK_SHARING_MODE_CONCURRENT;
+    createInfo.queueFamilyIndexCount = familyIndices.size();
+    createInfo.pQueueFamilyIndices = familyIndices.data();
 
-    if (vkCreateBuffer(m_device, &createInfo, nullptr, &m_vertexBuffer) != VK_SUCCESS)
+    if (vkCreateBuffer(m_device, &createInfo, nullptr, &buffer) != VK_SUCCESS)
         throw std::runtime_error("Failed to create buffer.");
-}
 
-void CApp::CreateVertexMemory()
-{
     VkMemoryRequirements memReq;
-    vkGetBufferMemoryRequirements(m_device, m_vertexBuffer, &memReq);
+    vkGetBufferMemoryRequirements(m_device, buffer, &memReq);
 
-    const auto memoryType = FindMemoryType(memReq.memoryTypeBits,
-                                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    const auto memoryType = FindMemoryType(memReq.memoryTypeBits, memoryPropertyFlags);
 
     VkMemoryAllocateInfo allocateInfo{};
     allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocateInfo.allocationSize = memReq.size;
     allocateInfo.memoryTypeIndex = memoryType;
 
-    if (vkAllocateMemory(m_device, &allocateInfo, nullptr, &m_vertexMemory) != VK_SUCCESS)
+    if (vkAllocateMemory(m_device, &allocateInfo, nullptr, &memory) != VK_SUCCESS)
         throw std::runtime_error("Failed to create vertex memory.");
 
-    if (vkBindBufferMemory(m_device, m_vertexBuffer, m_vertexMemory, 0) != VK_SUCCESS)
+    if (vkBindBufferMemory(m_device, buffer, memory, 0) != VK_SUCCESS)
         throw std::runtime_error("Failed to bind vertex buffer to memory.");
+}
+
+void CApp::CopyBuffer(VkBuffer &src, VkBuffer &dst, VkDeviceSize size)
+{
+    VkCommandBufferAllocateInfo allocateInfo{};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocateInfo.commandBufferCount = 1;
+    allocateInfo.commandPool = m_stagingCommandPool;
+    allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+    VkCommandBuffer stagingCmd;
+    if (vkAllocateCommandBuffers(m_device, &allocateInfo, &stagingCmd) != VK_SUCCESS)
+        throw std::runtime_error("Failed to allocate command buffer.");
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(stagingCmd, &beginInfo);
+
+    VkBufferCopy bufferCopy{};
+    bufferCopy.size = size;
+
+    vkCmdCopyBuffer(stagingCmd, src, dst, 1, &bufferCopy);
+
+    vkEndCommandBuffer(stagingCmd);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &stagingCmd;
+
+    vkQueueSubmit(m_transferQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_transferQueue);
+
+    vkFreeCommandBuffers(m_device, m_stagingCommandPool, 1, &stagingCmd);
+}
+
+void CApp::CreateVertexBuffer()
+{
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingMemory;
+    CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, m_verticesSize,
+                 stagingBuffer, stagingMemory);
 
     void *data;
-    vkMapMemory(m_device, m_vertexMemory, 0, m_verticesSize, 0, &data);
+    vkMapMemory(m_device, stagingMemory, 0, m_verticesSize, 0, &data);
     memcpy(data, m_vertices.data(), m_verticesSize);
-    vkUnmapMemory(m_device, m_vertexMemory);
+    vkUnmapMemory(m_device, stagingMemory);
+
+    CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_verticesSize, m_vertexBuffer, m_vertexMemory);
+
+    CopyBuffer(stagingBuffer, m_vertexBuffer, m_verticesSize);
+
+    vkFreeMemory(m_device, stagingMemory, nullptr);
+    vkDestroyBuffer(m_device, stagingBuffer, nullptr);
+}
+
+void CApp::CreateIndexBuffer()
+{
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingMemory;
+    CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, m_indicesSize,
+                 stagingBuffer, stagingMemory);
+
+    void *data;
+    vkMapMemory(m_device, stagingMemory, 0, m_indicesSize, 0, &data);
+    memcpy(data, m_indices.data(), m_indicesSize);
+    vkUnmapMemory(m_device, stagingMemory);
+
+    CreateBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_indicesSize, m_indexBuffer, m_indexMemory);
+
+    CopyBuffer(stagingBuffer, m_indexBuffer, m_indicesSize);
+
+    vkFreeMemory(m_device, stagingMemory, nullptr);
+    vkDestroyBuffer(m_device, stagingBuffer, nullptr);
 }
 
 uint32_t CApp::FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags flags)
@@ -611,6 +693,16 @@ void CApp::CreateCommandPool()
         throw std::runtime_error("Failed to create command pool.");
 }
 
+void CApp::CreateStagingCommandPool()
+{
+    VkCommandPoolCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    createInfo.queueFamilyIndex = m_queueFamilies.transferFamilyIndex.value();
+
+    if (vkCreateCommandPool(m_device, &createInfo, nullptr, &m_stagingCommandPool) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create staging command pool.");
+}
+
 void CApp::CreateCommandBuffers()
 {
     // Allocate command buffers
@@ -651,12 +743,15 @@ void CApp::CreateCommandBuffers()
         vkCmdBindPipeline(m_commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
         // Bind the vertex buffer
-        VkBuffer buffers[] = {m_vertexBuffer};
+        VkBuffer vertexBuffers[] = {m_vertexBuffer};
         VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(m_commandBuffers[index], 0, 1, buffers, offsets);
+        vkCmdBindVertexBuffers(m_commandBuffers[index], 0, 1, vertexBuffers, offsets);
+
+        // Bind the index buffer
+        vkCmdBindIndexBuffer(m_commandBuffers[index], m_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
         // Draw
-        vkCmdDraw(m_commandBuffers[index], m_vertices.size(), 1, 0, 0);
+        vkCmdDrawIndexed(m_commandBuffers[index], m_indices.size(), 1, 0, 0, 0);
 
         vkCmdEndRenderPass(m_commandBuffers[index]);
 
@@ -764,10 +859,13 @@ void CApp::Cleanup()
     vkDestroySemaphore(m_device, m_semaphoreRenderComplete, nullptr);
     vkDestroySemaphore(m_device, m_semaphorePresentComplete, nullptr);
 
+    vkDestroyBuffer(m_device, m_indexBuffer, nullptr);
+    vkFreeMemory(m_device, m_indexMemory, nullptr);
     vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
     vkFreeMemory(m_device, m_vertexMemory, nullptr);
     CleanupSwapchain();
     vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+    vkDestroyCommandPool(m_device, m_stagingCommandPool, nullptr);
 
     vkDestroyDevice(m_device, nullptr);
 
