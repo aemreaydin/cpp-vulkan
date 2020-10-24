@@ -6,6 +6,9 @@
 #include "window.hpp"
 
 #include <array>
+#include <chrono>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <limits>
 
 CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
@@ -22,10 +25,13 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     CreateSwapchainImages();
     CreateImageViews();
     CreateCommandPool();
-    CreateGraphicsPipeline();
-    CreateFramebuffers();
+    CreateDescriptorPool();
     CreateVertexBuffer();
     CreateIndexBuffer();
+    CreateUniformBuffers();
+    CreateUniformDescriptors();
+    CreateGraphicsPipeline();
+    CreateFramebuffers();
     CreateCommandBuffers();
     CreateSemaphores();
     CreateFences();
@@ -303,6 +309,7 @@ void CApp::RecreateSwapchain()
     CreateSwapchain();
     CreateSwapchainImages();
     CreateImageViews();
+    CreateDescriptorSets(m_descriptorSets.data());
     CreateGraphicsPipeline();
     CreateFramebuffers();
     CreateCommandBuffers();
@@ -413,8 +420,8 @@ void CApp::CreatePipelineLayout()
 {
     VkPipelineLayoutCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    createInfo.setLayoutCount = 0;
-    createInfo.pSetLayouts = nullptr;
+    createInfo.setLayoutCount = 1;
+    createInfo.pSetLayouts = &m_descriptorLayout;
     createInfo.pushConstantRangeCount = 0;
     createInfo.pPushConstantRanges = nullptr;
 
@@ -588,6 +595,113 @@ uint32_t CApp::FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags fla
     throw std::runtime_error("Failed to find a suitable memory type.");
 }
 
+void CApp::CreateDescriptorPool()
+{
+    VkDescriptorPoolSize poolSize{};
+    poolSize.descriptorCount = static_cast<uint32_t>(m_images.size());
+    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+    VkDescriptorPoolCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    createInfo.maxSets = static_cast<uint32_t>(m_images.size());
+    createInfo.poolSizeCount = 1;
+    createInfo.pPoolSizes = &poolSize;
+
+    if (vkCreateDescriptorPool(m_device, &createInfo, nullptr, &m_uniformDescPool) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create descriptor pool");
+}
+
+void CApp::CreateDescriptorSetLayout(VkDescriptorSetLayout &layout)
+{
+    VkDescriptorSetLayoutBinding layoutBinding{};
+    layoutBinding.descriptorCount = 1;
+    layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    layoutBinding.binding = 0;
+
+    VkDescriptorSetLayoutCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    createInfo.bindingCount = 1;
+    createInfo.pBindings = &layoutBinding;
+
+    if (vkCreateDescriptorSetLayout(m_device, &createInfo, nullptr, &layout) != VK_SUCCESS)
+        throw std::runtime_error("Failed to create descriptor set layout.");
+}
+
+void CApp::CreateDescriptorSets(VkDescriptorSet *descriptorSets)
+{
+    std::vector<VkDescriptorSetLayout> layouts(m_images.size(), m_descriptorLayout);
+    VkDescriptorSetAllocateInfo allocateInfo{};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocateInfo.pSetLayouts = layouts.data();
+    allocateInfo.descriptorPool = m_uniformDescPool;
+    allocateInfo.descriptorSetCount = static_cast<uint32_t>(m_images.size());
+
+    if (vkAllocateDescriptorSets(m_device, &allocateInfo, descriptorSets) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to create descriptor set.");
+    }
+
+    for (auto i = 0; i != m_descriptorSets.size(); ++i)
+    {
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = m_uniformBuffers[i];
+        bufferInfo.offset = 0;
+        bufferInfo.range = VK_WHOLE_SIZE;
+
+        VkWriteDescriptorSet writeSet{};
+        writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeSet.dstSet = m_descriptorSets[i];
+        writeSet.dstBinding = 0;
+        writeSet.dstArrayElement = 0;
+        writeSet.descriptorCount = 1;
+        writeSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writeSet.pBufferInfo = &bufferInfo;
+
+        vkUpdateDescriptorSets(m_device, 1, &writeSet, 0, nullptr);
+    }
+}
+
+void CApp::CreateUniformBuffers()
+{
+    m_uniformBuffers.resize(m_images.size());
+    m_uniformMemories.resize(m_images.size());
+    for (auto i = 0; i != m_uniformBuffers.size(); ++i)
+    {
+
+        CreateBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, sizeof(SMVP),
+                     m_uniformBuffers[i], m_uniformMemories[i]);
+    }
+}
+
+void CApp::UpdateUniformBuffers(uint32_t frameIndex)
+{
+    // TODO do this using push constants
+    static auto startTime = std::chrono::high_resolution_clock::now();
+
+    const auto currentTime = std::chrono::high_resolution_clock::now();
+    const auto time = std::chrono::duration<float, std::chrono::seconds ::period>(currentTime - startTime).count();
+
+    m_mvp.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    m_mvp.view = glm::lookAt(glm::vec3(0.0f, 0.1f, 2.0f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    m_mvp.projection =
+        glm::perspective(glm::radians(45.0f), m_extent.width / static_cast<float>(m_extent.height), 0.1f, 10.0f);
+    m_mvp.projection[1][1] *= -1;
+
+    void *data;
+    vkMapMemory(m_device, m_uniformMemories[frameIndex], 0, sizeof(SMVP), 0, &data);
+    memcpy(data, &m_mvp, sizeof(SMVP));
+    vkUnmapMemory(m_device, m_uniformMemories[frameIndex]);
+}
+
+void CApp::CreateUniformDescriptors()
+{
+    m_descriptorSets.resize(m_uniformBuffers.size());
+    CreateDescriptorSetLayout(m_descriptorLayout);
+    CreateDescriptorSets(m_descriptorSets.data());
+}
+
 void CApp::CreateGraphicsPipeline()
 {
     // Create the shader modules
@@ -731,6 +845,10 @@ void CApp::CreateCommandBuffers()
         // Bind the index buffer
         vkCmdBindIndexBuffer(m_commandBuffers[index], m_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
+        // Bind the uniform buffer
+        vkCmdBindDescriptorSets(m_commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
+                                &m_descriptorSets[index], 0, nullptr);
+
         // Draw
         vkCmdDrawIndexed(m_commandBuffers[index], m_indices.size(), 1, 0, 0, 0);
 
@@ -782,6 +900,8 @@ void CApp::Draw()
     // Wait for the current fence
     vkWaitForFences(m_device, 1, &m_fences[imageIndex], VK_TRUE, UINT64_MAX);
     vkResetFences(m_device, 1, &m_fences[imageIndex]);
+
+    UpdateUniformBuffers(imageIndex);
 
     // start rendering the image by submitting the render
     std::array<VkPipelineStageFlags, 1> flags{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -847,6 +967,17 @@ void CApp::Cleanup()
     CleanupSwapchain();
     vkDestroyCommandPool(m_device, m_commandPool, nullptr);
 
+    vkDestroyDescriptorSetLayout(m_device, m_descriptorLayout, nullptr);
+    vkDestroyDescriptorPool(m_device, m_uniformDescPool, nullptr);
+    for (auto &buffer : m_uniformBuffers)
+    {
+        vkDestroyBuffer(m_device, buffer, nullptr);
+    }
+    for (auto &memory : m_uniformMemories)
+    {
+
+        vkFreeMemory(m_device, memory, nullptr);
+    }
     vkDestroyDevice(m_device, nullptr);
 
     mp_validationLayer->DestroyDebugMessenger(m_instance);

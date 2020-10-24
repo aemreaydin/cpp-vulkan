@@ -11,3 +11,10 @@ struct SVertex
     static VkVertexInputBindingDescription GetInputBindingDescription();
     static std::array<VkVertexInputAttributeDescription, 2> GetAttributeBindingDescription();
 };
+
+struct SMVP
+{
+    glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 projection;
+};

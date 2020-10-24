@@ -8,9 +8,9 @@
 
 #include "appInfo.hpp"
 
+#include "baseObjects.hpp"
 #include "queueFamilies.hpp"
 #include "swapchainSupportDetails.hpp"
-#include "vertex.hpp"
 
 class CValidationLayer;
 class CWindow;
@@ -44,6 +44,11 @@ class CApp
     VkDeviceMemory m_vertexMemory = VK_NULL_HANDLE;
     VkBuffer m_indexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_indexMemory = VK_NULL_HANDLE;
+    std::vector<VkBuffer> m_uniformBuffers;
+    std::vector<VkDeviceMemory> m_uniformMemories;
+    VkDescriptorPool m_uniformDescPool = VK_NULL_HANDLE;
+    VkDescriptorSetLayout m_descriptorLayout = VK_NULL_HANDLE;
+    std::vector<VkDescriptorSet> m_descriptorSets;
 
     SAppInfo m_appInfo;
     SQueueFamilies m_queueFamilies;
@@ -59,6 +64,7 @@ class CApp
     std::vector<uint16_t> m_indices = {0, 1, 2, 2, 1, 3};
     VkDeviceSize m_verticesSize = sizeof(SVertex) * m_vertices.size();
     VkDeviceSize m_indicesSize = sizeof(uint16_t) * m_indices.size();
+    SMVP m_mvp{};
 
     // Instance creation
     void CreateInstance();
@@ -90,6 +96,13 @@ class CApp
     void CopyBuffer(VkBuffer &src, VkBuffer &dst, VkDeviceSize size);
     void CreateVertexBuffer();
     void CreateIndexBuffer();
+    // Desriptor sets creation
+    void CreateDescriptorSets(VkDescriptorSet *descriptorSets);
+    void CreateDescriptorPool();
+    void CreateDescriptorSetLayout(VkDescriptorSetLayout &layout);
+    void CreateUniformDescriptors();
+    void CreateUniformBuffers();
+    void UpdateUniformBuffers(uint32_t frameIndex);
     // Graphics Pipeline creation
     VkShaderModule CreateShaderModule(const std::string &shaderFile);
     VkPipelineShaderStageCreateInfo CreateShaderPipelineStage(const VkShaderModule &module,

@@ -1,4 +1,4 @@
-#include "vertex.hpp"
+#include "baseObjects.hpp"
 
 VkVertexInputBindingDescription SVertex::GetInputBindingDescription()
 {

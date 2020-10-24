@@ -1,5 +1,5 @@
 #include "graphicsPipelineStates.hpp"
-#include "vertex.hpp"
+#include "baseObjects.hpp"
 
 SGraphicsPipelineStates::SGraphicsPipelineStates(const VkPipelineColorBlendAttachmentState &attachmentState,
                                                  const VkViewport &viewport, const VkRect2D &scissors,
@@ -43,9 +43,9 @@ VkPipelineRasterizationStateCreateInfo SGraphicsPipelineStates::RasterizationSta
     createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     createInfo.depthClampEnable = VK_FALSE;
     createInfo.rasterizerDiscardEnable = VK_FALSE;
-    createInfo.polygonMode = VK_POLYGON_MODE_LINE;
+    createInfo.polygonMode = VK_POLYGON_MODE_FILL;
     createInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-    createInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    createInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     createInfo.depthBiasEnable = VK_FALSE;
     createInfo.depthBiasConstantFactor = 0.0f;
     createInfo.depthBiasClamp = 0.0f;
