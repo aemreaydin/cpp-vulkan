@@ -13,7 +13,6 @@ layout(location = 1) in vec4 color;
 layout(location = 0) out vec4 fragColor;
 
 void main() {
-    gl_Position.y = -gl_Position.y;
     gl_Position = ubo.proj * ubo.view * ubo.model * vec4(position, 1.0);
     fragColor = color;
 }

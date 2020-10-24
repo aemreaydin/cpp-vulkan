@@ -1,18 +1,20 @@
 #include "app.hpp"
 #include "fileOps.hpp"
 #include "graphicsPipelineStates.hpp"
+#include "objLoader.hpp"
 #include "validationLayer.hpp"
 #include "vulkanHelpers.hpp"
 #include "window.hpp"
 
 #include <array>
 #include <chrono>
-#include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <limits>
 
 CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
 {
+    LoadObject("../models/cube.obj");
+
     mp_window = std::make_unique<CWindow>(appInfo.width, appInfo.height);
     CreateInstance();
     mp_validationLayer = std::make_unique<CValidationLayer>(m_instance, m_appInfo.layers);
@@ -683,10 +685,12 @@ void CApp::UpdateUniformBuffers(uint32_t frameIndex)
     const auto currentTime = std::chrono::high_resolution_clock::now();
     const auto time = std::chrono::duration<float, std::chrono::seconds ::period>(currentTime - startTime).count();
 
-    m_mvp.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    m_mvp.view = glm::lookAt(glm::vec3(0.0f, 0.1f, 2.0f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    m_mvp.model = glm::scale(glm::mat4(1.0f), glm::vec3(0.01f));
+    m_mvp.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(30.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+    m_mvp.view = glm::lookAt(glm::vec3(0.0f, 0.1f, 10.0f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     m_mvp.projection =
-        glm::perspective(glm::radians(45.0f), m_extent.width / static_cast<float>(m_extent.height), 0.1f, 10.0f);
+        glm::perspective(glm::radians(45.0f), m_extent.width / static_cast<float>(m_extent.height), 0.1f, 100.0f);
+    //    m_mvp.projection = glm::ortho(-2.0f, 2.0f, 2.0f, -2.0f, 0.1f, 10.0f);
     m_mvp.projection[1][1] *= -1;
 
     void *data;
@@ -938,6 +942,15 @@ void CApp::Draw()
     }
     else if (presentRes != VK_SUCCESS)
         throw std::runtime_error("Failed to present image");
+}
+
+void CApp::LoadObject(std::string objFile)
+{
+    m_cube = CObjLoader::LoadObj(objFile);
+    m_vertices = m_cube.vertices;
+    m_indices = m_cube.indices;
+    m_verticesSize = sizeof(SVertex) * m_vertices.size();
+    m_indicesSize = sizeof(uint16_t) * m_indices.size();
 }
 
 void CApp::RenderLoop()

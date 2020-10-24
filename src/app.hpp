@@ -57,13 +57,11 @@ class CApp
     std::unique_ptr<CValidationLayer> mp_validationLayer;
     std::unique_ptr<CWindow> mp_window;
 
-    std::vector<SVertex> m_vertices = {{{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 1.0f, 1.0f}},
-                                       {{0.5f, -0.5f, 0.0f}, {1.0f, 1.0f, 0.0f, 1.0f}},
-                                       {{-0.5f, 0.5f, 0.0f}, {0.0f, 1.0f, 1.0f, 1.0f}},
-                                       {{0.5f, 0.5f, 0.0f}, {0.5f, 0.5f, 0.5f, 1.0f}}};
-    std::vector<uint16_t> m_indices = {0, 1, 2, 2, 1, 3};
-    VkDeviceSize m_verticesSize = sizeof(SVertex) * m_vertices.size();
-    VkDeviceSize m_indicesSize = sizeof(uint16_t) * m_indices.size();
+    SObject m_cube{};
+    std::vector<SVertex> m_vertices;
+    std::vector<uint16_t> m_indices;
+    VkDeviceSize m_verticesSize;
+    VkDeviceSize m_indicesSize;
     SMVP m_mvp{};
 
     // Instance creation
@@ -128,6 +126,7 @@ class CApp
   public:
     explicit CApp(SAppInfo appInfo);
 
+    void LoadObject(std::string objFile);
     void RenderLoop();
     void Cleanup();
 };
