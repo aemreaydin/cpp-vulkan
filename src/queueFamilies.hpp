@@ -1,3 +1,5 @@
+#pragma once
+
 #include <optional>
 #include <set>
 #include <vulkan/vulkan.h>

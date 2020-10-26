@@ -28,5 +28,5 @@ include_directories(ThirdParty/loaders)
 
 include_directories(src)
 file(GLOB SRC "src/*.cpp")
-add_executable(vulkan00 main.cpp ${SRC})
+add_executable(vulkan00 main.cpp ${SRC} src/CImageLoader.cpp src/CImageLoader.hpp)
 target_link_libraries(vulkan00 ${LIBS})

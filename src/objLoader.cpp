@@ -41,13 +41,12 @@ SObject CObjLoader::LoadObj(std::string objFile)
                 auto vy = attrib.vertices[3 * ind.vertex_index + 1];
                 auto vz = attrib.vertices[3 * ind.vertex_index + 2];
 
-                auto cx = (static_cast<float>(rand()) / (RAND_MAX));
-                auto cy = (static_cast<float>(rand()) / (RAND_MAX));
-                auto cz = (static_cast<float>(rand()) / (RAND_MAX));
+                auto tx = attrib.texcoords[2 * ind.texcoord_index + 0];
+                auto ty = 1.0f - attrib.texcoords[2 * ind.texcoord_index + 1];
 
                 SVertex vertex{};
                 vertex.position = {vx, vy, vz};
-                vertex.color = {cx, cy, cz, 1.0f};
+                vertex.uv = {tx, ty};
 
                 object.vertices[ind.vertex_index] = vertex;
                 object.indices[indexIndex++] = ind.vertex_index;

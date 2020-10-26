@@ -1,3 +1,5 @@
+#pragma once
+
 struct SAppInfo
 {
     uint32_t width;

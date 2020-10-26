@@ -44,6 +44,14 @@ class CApp
     VkDeviceMemory m_vertexMemory = VK_NULL_HANDLE;
     VkBuffer m_indexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_indexMemory = VK_NULL_HANDLE;
+    VkImage m_texImage = VK_NULL_HANDLE;
+    VkImageView m_texImageView = VK_NULL_HANDLE;
+    VkDeviceMemory m_texMemory = VK_NULL_HANDLE;
+    VkSampler m_texSampler = VK_NULL_HANDLE;
+    VkDescriptorSetLayout m_texLayout;
+    VkDescriptorSet m_texDescriptorSet;
+    VkDescriptorPool m_texPool;
+
     std::vector<VkBuffer> m_uniformBuffers;
     std::vector<VkDeviceMemory> m_uniformMemories;
     VkDescriptorPool m_uniformDescPool = VK_NULL_HANDLE;
@@ -94,6 +102,10 @@ class CApp
     void CopyBuffer(VkBuffer &src, VkBuffer &dst, VkDeviceSize size);
     void CreateVertexBuffer();
     void CreateIndexBuffer();
+    // Texture Image creation
+    void CreateTexImage();
+    void CreateTexImageView();
+    void CreateSampler();
     // Desriptor sets creation
     void CreateDescriptorSets(VkDescriptorSet *descriptorSets);
     void CreateDescriptorPool();
