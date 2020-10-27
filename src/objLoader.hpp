@@ -2,10 +2,11 @@
 
 #include <iostream>
 #include <vector>
-struct SObject;
+
+class CModel;
 
 class CObjLoader
 {
   public:
-    static SObject LoadObj(std::string objFile);
+    static CModel LoadObj(std::string objFile);
 };

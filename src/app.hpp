@@ -6,14 +6,16 @@
 #include <memory>
 #include <vector>
 
-#include "appInfo.hpp"
+#include "AppInfo.hpp"
 
-#include "baseObjects.hpp"
+#include "Model.hpp"
+#include "Primitives.hpp"
+#include "Window.hpp"
 #include "queueFamilies.hpp"
 #include "swapchainSupportDetails.hpp"
+#include "validationLayer.hpp"
+#include "vulkanHelpers.hpp"
 
-class CValidationLayer;
-class CWindow;
 struct SGraphicsPipelineStates;
 enum class EShaderType;
 
@@ -65,7 +67,7 @@ class CApp
     std::unique_ptr<CValidationLayer> mp_validationLayer;
     std::unique_ptr<CWindow> mp_window;
 
-    SObject m_cube{};
+    CModel m_cube{};
     std::vector<SVertex> m_vertices;
     std::vector<uint16_t> m_indices;
     VkDeviceSize m_verticesSize;

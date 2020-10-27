@@ -1,5 +1,5 @@
 #include "graphicsPipelineStates.hpp"
-#include "baseObjects.hpp"
+#include "Primitives.hpp"
 
 SGraphicsPipelineStates::SGraphicsPipelineStates(const VkPipelineColorBlendAttachmentState &attachmentState,
                                                  const VkViewport &viewport, const VkRect2D &scissors,

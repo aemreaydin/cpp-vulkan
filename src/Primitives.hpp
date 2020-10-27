@@ -21,10 +21,3 @@ struct SMVP
     glm::mat4 view;
     glm::mat4 projection;
 };
-
-struct SObject
-{
-    std::string name;
-    std::vector<SVertex> vertices;
-    std::vector<uint16_t> indices;
-};

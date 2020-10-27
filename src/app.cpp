@@ -3,9 +3,6 @@
 #include "fileOps.hpp"
 #include "graphicsPipelineStates.hpp"
 #include "objLoader.hpp"
-#include "validationLayer.hpp"
-#include "vulkanHelpers.hpp"
-#include "window.hpp"
 
 #include <array>
 #include <chrono>
@@ -14,7 +11,7 @@
 
 CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
 {
-    LoadObject("../models/cube.obj");
+    LoadObject("../assets/models/cube.obj");
 
     mp_window = std::make_unique<CWindow>(appInfo.width, appInfo.height);
     CreateInstance();
@@ -597,7 +594,7 @@ void CApp::CreateIndexBuffer()
 void CApp::CreateTexImage()
 {
     int width, height, channels;
-    const auto imageData = CImageLoader::Load2DImage("../textures/texture.jpg", width, height, channels);
+    const auto imageData = CImageLoader::Load2DImage("../assets/textures/texture.jpg", width, height, channels);
     const auto imageSize = width * height * 4;
 
     VkBuffer stagingBuffer;
@@ -782,7 +779,6 @@ void CApp::CreateDescriptorPool()
     pools[0].descriptorCount = static_cast<uint32_t>(m_images.size());
     pools[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
-    VkDescriptorPoolSize samplerPoolSize{};
     pools[1].descriptorCount = static_cast<uint32_t>(m_images.size());
     pools[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
@@ -910,10 +906,10 @@ void CApp::CreateUniformDescriptors()
 void CApp::CreateGraphicsPipeline()
 {
     // Create the shader modules
-    const auto vertModule = CreateShaderModule("../shaders/simpleVertex.spv");
+    const auto vertModule = CreateShaderModule("../assets/shaders/simpleVertex.spv");
     const auto vertStageInfo = CreateShaderPipelineStage(vertModule, EShaderType::Vert);
 
-    const auto fragModule = CreateShaderModule("../shaders/simpleFrag.spv");
+    const auto fragModule = CreateShaderModule("../assets/shaders/simpleFrag.spv");
     const auto fragStageInfo = CreateShaderPipelineStage(fragModule, EShaderType::Frag);
 
     const std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{vertStageInfo, fragStageInfo};

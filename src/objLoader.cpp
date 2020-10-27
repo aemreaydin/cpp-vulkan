@@ -1,9 +1,9 @@
 #include "objLoader.hpp"
-#include "baseObjects.hpp"
+#include "Model.hpp"
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tinyobjloader/tiny_obj_loader.h>
 
-SObject CObjLoader::LoadObj(std::string objFile)
+CModel CObjLoader::LoadObj(std::string objFile)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -22,10 +22,10 @@ SObject CObjLoader::LoadObj(std::string objFile)
         throw std::runtime_error("Failed to load object.");
 
     // TODO this only takes the first shape
-    SObject object;
-    object.vertices.resize(attrib.vertices.size() / 3);
-    object.indices.resize(shapes[0].mesh.indices.size());
-    object.name = shapes[0].name;
+    CModel model;
+    model.vertices.resize(attrib.vertices.size() / 3);
+    model.indices.resize(shapes[0].mesh.indices.size());
+    model.name = shapes[0].name;
 
     auto indexIndex = 0;
     for (size_t s = 0; s != 1; ++s)
@@ -48,12 +48,12 @@ SObject CObjLoader::LoadObj(std::string objFile)
                 vertex.position = {vx, vy, vz};
                 vertex.uv = {tx, ty};
 
-                object.vertices[ind.vertex_index] = vertex;
-                object.indices[indexIndex++] = ind.vertex_index;
+                model.vertices[ind.vertex_index] = vertex;
+                model.indices[indexIndex++] = ind.vertex_index;
             }
             index_offset += fv;
         }
     }
 
-    return object;
+    return model;
 }
