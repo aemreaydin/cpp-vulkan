@@ -50,9 +50,10 @@ class CApp
     VkImageView m_texImageView = VK_NULL_HANDLE;
     VkDeviceMemory m_texMemory = VK_NULL_HANDLE;
     VkSampler m_texSampler = VK_NULL_HANDLE;
-    VkDescriptorSetLayout m_texLayout;
-    VkDescriptorSet m_texDescriptorSet;
-    VkDescriptorPool m_texPool;
+    VkImage m_depthImage;
+    VkImageView m_depthImageView;
+    VkDeviceMemory m_depthImageMemory;
+    VkFormat m_depthFormat;
 
     std::vector<VkBuffer> m_uniformBuffers;
     std::vector<VkDeviceMemory> m_uniformMemories;
@@ -67,7 +68,7 @@ class CApp
     std::unique_ptr<CValidationLayer> mp_validationLayer;
     std::unique_ptr<CWindow> mp_window;
 
-    CModel m_cube{};
+    CModel m_vikingRoom{};
     std::vector<SVertex> m_vertices;
     std::vector<uint16_t> m_indices;
     VkDeviceSize m_verticesSize;
@@ -78,7 +79,7 @@ class CApp
     void CreateInstance();
     // Physical Device creation
     std::vector<VkPhysicalDevice> FindPhysicalDevices();
-    std::vector<VkQueueFamilyProperties> FindQueueFamilise(const VkPhysicalDevice &device);
+    std::vector<VkQueueFamilyProperties> FindQueueFamilies(const VkPhysicalDevice &device);
     bool IsDeviceSuitable(const VkPhysicalDevice &device);
     void CreatePhysicalDevice();
     // Logical Device creation
@@ -104,11 +105,12 @@ class CApp
     void CopyBuffer(VkBuffer &src, VkBuffer &dst, VkDeviceSize size);
     void CreateVertexBuffer();
     void CreateIndexBuffer();
+    void CreateDepthImage();
     // Texture Image creation
     void CreateTexImage();
     void CreateTexImageView();
     void CreateSampler();
-    // Desriptor sets creation
+    // Descriptor sets creation
     void CreateDescriptorSets(VkDescriptorSet *descriptorSets);
     void CreateDescriptorPool();
     void CreateDescriptorSetLayout(VkDescriptorSetLayout &layout);
@@ -128,6 +130,7 @@ class CApp
     void CreateCommandPool();
     void CreateCommandBuffers();
 
+    VkFormat FindDepthFormat(std::vector<VkFormat> formats, VkImageTiling tiling, VkFormatFeatureFlags flags);
     uint32_t FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags flags);
     // Surface creation
     void CreateSurface();

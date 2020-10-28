@@ -1,6 +1,6 @@
 #include "app.hpp"
 #include "CImageLoader.hpp"
-#include "fileOps.hpp"
+#include "FileOps.hpp"
 #include "graphicsPipelineStates.hpp"
 #include "objLoader.hpp"
 
@@ -11,7 +11,7 @@
 
 CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
 {
-    LoadObject("../assets/models/cube.obj");
+    LoadObject("../assets/models/viking_room.obj");
 
     mp_window = std::make_unique<CWindow>(appInfo.width, appInfo.height);
     CreateInstance();
@@ -31,6 +31,7 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     CreateTexImage();
     CreateTexImageView();
     CreateSampler();
+    CreateDepthImage();
 
     CreateUniformBuffers();
     CreateUniformDescriptors();
@@ -99,7 +100,7 @@ std::vector<VkPhysicalDevice> CApp::FindPhysicalDevices()
     return devices;
 }
 
-std::vector<VkQueueFamilyProperties> CApp::FindQueueFamilise(VkPhysicalDevice const &device)
+std::vector<VkQueueFamilyProperties> CApp::FindQueueFamilies(VkPhysicalDevice const &device)
 {
     uint32_t queueFamilyCount;
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
@@ -124,7 +125,7 @@ void CApp::CreatePhysicalDevice()
     const auto devices = FindPhysicalDevices();
     for (const auto &device : devices)
     {
-        const auto queueFamilies = FindQueueFamilise(device);
+        const auto queueFamilies = FindQueueFamilies(device);
 
         uint32_t index = 0;
         for (const auto &family : queueFamilies)
@@ -315,6 +316,7 @@ void CApp::RecreateSwapchain()
     CreateSwapchainImages();
     CreateImageViews();
     CreateTexImageView();
+    CreateDepthImage();
     CreateDescriptorPool();
     CreateDescriptorSets(m_descriptorSets.data());
     CreateGraphicsPipeline();
@@ -338,6 +340,9 @@ void CApp::CleanupSwapchain()
     {
         vkDestroyImageView(m_device, imageView, nullptr);
     }
+    vkDestroyImageView(m_device, m_depthImageView, nullptr);
+    vkFreeMemory(m_device, m_depthImageMemory, nullptr);
+    vkDestroyImage(m_device, m_depthImage, nullptr);
     vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
     vkDestroyDescriptorPool(m_device, m_uniformDescPool, nullptr);
 }
@@ -440,24 +445,38 @@ void CApp::CreatePipelineLayout()
 
 void CApp::CreateRenderPass()
 {
-    VkAttachmentDescription description{};
-    description.format = m_format;
-    description.samples = VK_SAMPLE_COUNT_1_BIT;
-    description.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    description.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    description.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    description.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    description.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    description.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    std::array<VkAttachmentDescription, 2> attachmentDescriptions{};
+    attachmentDescriptions[0].format = m_format;
+    attachmentDescriptions[0].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDescriptions[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachmentDescriptions[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-    VkAttachmentReference reference{};
-    reference.attachment = 0;
-    reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachmentDescriptions[1].format = m_depthFormat;
+    attachmentDescriptions[1].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachmentDescriptions[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachmentDescriptions[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachmentDescriptions[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachmentDescriptions[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachmentDescriptions[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference colorReference{};
+    colorReference.attachment = 0;
+    colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthReference{};
+    depthReference.attachment = 1;
+    depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkSubpassDescription subpassDescription{};
     subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpassDescription.colorAttachmentCount = 1;
-    subpassDescription.pColorAttachments = &reference;
+    subpassDescription.pColorAttachments = &colorReference;
+    subpassDescription.pDepthStencilAttachment = &depthReference;
 
     VkSubpassDependency subpassDependency{};
     subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -469,8 +488,8 @@ void CApp::CreateRenderPass()
 
     VkRenderPassCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    createInfo.attachmentCount = 1;
-    createInfo.pAttachments = &description;
+    createInfo.attachmentCount = attachmentDescriptions.size();
+    createInfo.pAttachments = attachmentDescriptions.data();
     createInfo.subpassCount = 1;
     createInfo.pSubpasses = &subpassDescription;
     createInfo.dependencyCount = 1;
@@ -591,10 +610,83 @@ void CApp::CreateIndexBuffer()
     vkDestroyBuffer(m_device, stagingBuffer, nullptr);
 }
 
+void CApp::CreateDepthImage()
+{
+    m_depthFormat = FindDepthFormat({VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT_S8_UINT},
+                                    VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+    VkImageCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    createInfo.imageType = VK_IMAGE_TYPE_2D;
+    createInfo.format = m_depthFormat;
+    createInfo.extent.width = m_extent.width;
+    createInfo.extent.height = m_extent.height;
+    createInfo.extent.depth = 1.0f;
+    createInfo.mipLevels = 1;
+    createInfo.arrayLayers = 1;
+    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    createInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    createInfo.queueFamilyIndexCount = 1;
+    createInfo.pQueueFamilyIndices = &m_queueFamilies.graphicsFamilyIndex.value();
+    createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    if (const auto res = vkCreateImage(m_device, &createInfo, nullptr, &m_depthImage); res != VK_SUCCESS)
+        throw std::runtime_error("Failed to create depth image.");
+
+    VkMemoryRequirements memReq;
+    vkGetImageMemoryRequirements(m_device, m_depthImage, &memReq);
+
+    VkMemoryAllocateInfo allocateInfo{};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocateInfo.memoryTypeIndex = FindMemoryType(memReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    allocateInfo.allocationSize = memReq.size;
+
+    if (const auto res = vkAllocateMemory(m_device, &allocateInfo, nullptr, &m_depthImageMemory); res != VK_SUCCESS)
+        throw std::runtime_error("Failed to allocate depth memory.");
+
+    if (const auto res = vkBindImageMemory(m_device, m_depthImage, m_depthImageMemory, 0); res != VK_SUCCESS)
+        throw std::runtime_error("Failed to bind depth image memory.");
+
+    VkImageViewCreateInfo imageViewCreateInfo{};
+    imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewCreateInfo.image = m_depthImage;
+    imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    imageViewCreateInfo.format = m_depthFormat;
+    imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+    imageViewCreateInfo.subresourceRange.levelCount = 1;
+    imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    imageViewCreateInfo.subresourceRange.layerCount = 1;
+
+    if (const auto res = vkCreateImageView(m_device, &imageViewCreateInfo, nullptr, &m_depthImageView);
+        res != VK_SUCCESS)
+        throw std::runtime_error("Failed to create depth image view.");
+}
+
+VkFormat CApp::FindDepthFormat(std::vector<VkFormat> formats, VkImageTiling tiling, VkFormatFeatureFlags flags)
+{
+    for (const auto &format : formats)
+    {
+        VkFormatProperties formatProperties;
+        vkGetPhysicalDeviceFormatProperties(m_physicalDevice, format, &formatProperties);
+
+        if (tiling == VK_IMAGE_TILING_LINEAR && (flags & formatProperties.linearTilingFeatures) == flags)
+        {
+            return format;
+        }
+        else if (tiling == VK_IMAGE_TILING_OPTIMAL && (flags & formatProperties.optimalTilingFeatures) == flags)
+        {
+            return format;
+        }
+    }
+    throw std::runtime_error("Failed to find a suitable depth format.");
+}
+
 void CApp::CreateTexImage()
 {
     int width, height, channels;
-    const auto imageData = CImageLoader::Load2DImage("../assets/textures/texture.jpg", width, height, channels);
+    const auto imageData = CImageLoader::Load2DImage("../assets/textures/viking_room.png", width, height, channels);
     const auto imageSize = width * height * 4;
 
     VkBuffer stagingBuffer;
@@ -612,8 +704,8 @@ void CApp::CreateTexImage()
     createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     createInfo.imageType = VK_IMAGE_TYPE_2D;
     createInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-    createInfo.extent.width = m_extent.width;
-    createInfo.extent.height = m_extent.height;
+    createInfo.extent.width = width;
+    createInfo.extent.height = height;
     createInfo.extent.depth = 1;
     createInfo.mipLevels = 1;
     createInfo.arrayLayers = 1;
@@ -882,8 +974,8 @@ void CApp::UpdateUniformBuffers(uint32_t frameIndex)
     const auto currentTime = std::chrono::high_resolution_clock::now();
     const auto time = std::chrono::duration<float, std::chrono::seconds ::period>(currentTime - startTime).count();
 
-    m_mvp.model = glm::scale(glm::mat4(1.0f), glm::vec3(0.01f));
-    m_mvp.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(30.0f), glm::vec3(1.0f, 1.0f, 1.0f));
+    m_mvp.model = glm::scale(glm::mat4(1.0f), glm::vec3(2.0f));
+    m_mvp.model *= glm::rotate(glm::mat4(1.0f), time * glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     m_mvp.view = glm::lookAt(glm::vec3(0.0f, 0.1f, 10.0f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     m_mvp.projection =
         glm::perspective(glm::radians(45.0f), m_extent.width / static_cast<float>(m_extent.height), 0.1f, 100.0f);
@@ -974,7 +1066,7 @@ void CApp::CreateFramebuffers()
 
     for (auto index = 0; index != m_framebuffers.size(); ++index)
     {
-        std::array<VkImageView, 1> attachments = {m_imageViews[index]};
+        std::array<VkImageView, 2> attachments = {m_imageViews[index], m_depthImageView};
         VkFramebufferCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         createInfo.renderPass = m_renderPass;
@@ -1022,16 +1114,18 @@ void CApp::CreateCommandBuffers()
             throw std::runtime_error("Failed to begin command buffer.");
 
         // Begin the renderpass
-        VkClearValue clearValue{};
-        clearValue.color = {0.0f, 0.0f, 0.0f, 0.0f};
+        std::array<VkClearValue, 2> clearValues;
+        clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
+        clearValues[1].depthStencil = {1.0f, 0};
+
         VkRenderPassBeginInfo renderPassBeginInfo{};
         renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassBeginInfo.renderPass = m_renderPass;
         renderPassBeginInfo.framebuffer = m_framebuffers[index];
         renderPassBeginInfo.renderArea.offset = {0, 0};
         renderPassBeginInfo.renderArea.extent = m_extent;
-        renderPassBeginInfo.clearValueCount = 1;
-        renderPassBeginInfo.pClearValues = &clearValue;
+        renderPassBeginInfo.clearValueCount = clearValues.size();
+        renderPassBeginInfo.pClearValues = clearValues.data();
 
         vkCmdBeginRenderPass(m_commandBuffers[index], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -1143,9 +1237,10 @@ void CApp::Draw()
 
 void CApp::LoadObject(std::string objFile)
 {
-    m_cube = CObjLoader::LoadObj(objFile);
-    m_vertices = m_cube.vertices;
-    m_indices = m_cube.indices;
+    m_vikingRoom = CObjLoader::LoadObj(objFile);
+
+    m_vertices = m_vikingRoom.vertices;
+    m_indices = m_vikingRoom.indices;
     m_verticesSize = sizeof(SVertex) * m_vertices.size();
     m_indicesSize = sizeof(uint16_t) * m_indices.size();
 }

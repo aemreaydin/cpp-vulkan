@@ -78,7 +78,11 @@ VkPipelineDepthStencilStateCreateInfo SGraphicsPipelineStates::DepthStencilState
 {
     VkPipelineDepthStencilStateCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    createInfo.depthTestEnable = VK_FALSE;
+    createInfo.depthTestEnable = VK_TRUE;
+    createInfo.depthWriteEnable = VK_TRUE;
+    createInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+    createInfo.depthBoundsTestEnable = VK_FALSE;
+    createInfo.stencilTestEnable = VK_FALSE;
 
     return createInfo;
 }
