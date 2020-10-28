@@ -8,6 +8,7 @@
 #include <chrono>
 #include <glm/gtc/matrix_transform.hpp>
 #include <limits>
+#include <shaderc/shaderc.hpp>
 
 CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
 {
@@ -393,17 +394,42 @@ void CApp::CreateImageViews()
     }
 }
 
-VkShaderModule CApp::CreateShaderModule(const std::string &shaderFile)
+VkShaderModule CApp::CreateShaderModule(const std::string &shaderFile, const EShaderType shaderType)
 {
-    const auto shader = CFileOps::ReadShader(shaderFile);
+    // Read the glsl file
+    const auto glsl = CFileOps::ReadShader(shaderFile);
+
+    shaderc::Compiler compiler;
+    shaderc::CompileOptions compileOptions;
+    compileOptions.SetOptimizationLevel(shaderc_optimization_level_performance);
+    std::string source;
+    // Compile glsl to spv
+    shaderc_shader_kind shaderKind;
+    switch (shaderType)
+    {
+    case EShaderType::Frag:
+        shaderKind = shaderc_glsl_fragment_shader;
+        break;
+    case EShaderType::Vert:
+        shaderKind = shaderc_glsl_vertex_shader;
+        break;
+    default:
+        throw std::runtime_error("Failed - Shader type not supported.");
+    }
+    const auto module =
+        compiler.CompileGlslToSpv(glsl.data(), glsl.size(), shaderKind, "shader", "main", compileOptions);
+    if (const auto status = module.GetCompilationStatus(); status != shaderc_compilation_status_success)
+        throw std::runtime_error(module.GetErrorMessage());
+    std::vector<uint32_t> spirv(module.cbegin(), module.cend());
 
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = shader.size();
-    createInfo.pCode = reinterpret_cast<const uint32_t *>(shader.data());
+    createInfo.codeSize = spirv.size() * sizeof(uint32_t);
+    createInfo.pCode = spirv.data();
 
     VkShaderModule shaderModule;
-    vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule);
+    if (const auto res = vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule); res != VK_SUCCESS)
+        throw std::runtime_error("Failed to create shader module.");
 
     return shaderModule;
 }
@@ -998,10 +1024,10 @@ void CApp::CreateUniformDescriptors()
 void CApp::CreateGraphicsPipeline()
 {
     // Create the shader modules
-    const auto vertModule = CreateShaderModule("../assets/shaders/simpleVertex.spv");
+    const auto vertModule = CreateShaderModule("../assets/shaders/simple.vert", EShaderType::Vert);
     const auto vertStageInfo = CreateShaderPipelineStage(vertModule, EShaderType::Vert);
 
-    const auto fragModule = CreateShaderModule("../assets/shaders/simpleFrag.spv");
+    const auto fragModule = CreateShaderModule("../assets/shaders/simple.frag", EShaderType::Frag);
     const auto fragStageInfo = CreateShaderPipelineStage(fragModule, EShaderType::Frag);
 
     const std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{vertStageInfo, fragStageInfo};

@@ -118,7 +118,7 @@ class CApp
     void CreateUniformBuffers();
     void UpdateUniformBuffers(uint32_t frameIndex);
     // Graphics Pipeline creation
-    VkShaderModule CreateShaderModule(const std::string &shaderFile);
+    VkShaderModule CreateShaderModule(const std::string &shaderFile, const EShaderType shaderType);
     VkPipelineShaderStageCreateInfo CreateShaderPipelineStage(const VkShaderModule &module,
                                                               const EShaderType shaderType);
     void CreatePipelineLayout();
