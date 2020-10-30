@@ -1,9 +1,9 @@
-#include "objLoader.hpp"
-#include "Model.hpp"
+#include "CModelLoader.hpp"
+#include "CModel.hpp"
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tinyobjloader/tiny_obj_loader.h>
 
-CModel CObjLoader::LoadObj(std::string objFile)
+CModel CModelLoader::LoadObjModel(std::string objFile)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;

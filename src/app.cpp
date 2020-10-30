@@ -1,25 +1,24 @@
 #include "app.hpp"
 #include "CImageLoader.hpp"
-#include "FileOps.hpp"
-#include "graphicsPipelineStates.hpp"
-#include "objLoader.hpp"
+#include "CModelLoader.hpp"
+#include "SGraphicsPipelineStates.hpp"
 
 #include <array>
 #include <chrono>
 #include <glm/gtc/matrix_transform.hpp>
 #include <limits>
-#include <shaderc/shaderc.hpp>
 
 CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
 {
     LoadObject("../assets/models/viking_room.obj");
 
+    // Create GLFW window
     mp_window = std::make_unique<CWindow>(appInfo.width, appInfo.height);
-    CreateInstance();
-    mp_validationLayer = std::make_unique<CValidationLayer>(m_instance, m_appInfo.layers);
-    CreateSurface();
-
-    CreatePhysicalDevice();
+    // Create Vulkan instance, surface, physical device, queue families and validation layers
+    mp_instance = std::make_unique<CInstance>(appInfo);
+    mp_instance->CreateSurface(mp_window->Window());
+    mp_instance->CreatePhysicalDevice();
+    // Create Vulkan device and the rest
     CreateDevice();
     CreateQueues();
     CreateSwapchain();
@@ -43,125 +42,12 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     CreateFences();
 }
 
-void CApp::CreateInstance()
-{
-    if (!CVulkanHelpers::CheckForVulkanLayers(m_appInfo.layers))
-    {
-        throw std::runtime_error("Validation layers not available.");
-    }
-
-    auto appInfo = VkApplicationInfo{};
-    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = "Vulkan 00";
-    appInfo.applicationVersion = VK_API_VERSION_1_0;
-    appInfo.pEngineName = "Vulkan 00";
-    appInfo.engineVersion = 1;
-
-    const auto extensions = CVulkanHelpers::GetVulkanInstanceExtensions();
-    auto instanceCreateInfo = VkInstanceCreateInfo{};
-    VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
-    // Structure to specify the parameters for a new instance
-    instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    instanceCreateInfo.pApplicationInfo = &appInfo;
-    instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-    instanceCreateInfo.ppEnabledExtensionNames = extensions.data();
-    // TODO add debug check
-    instanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(m_appInfo.layers.size());
-    instanceCreateInfo.ppEnabledLayerNames = m_appInfo.layers.data();
-
-    CValidationLayer::PopulateDebugMessengerCreateInfo(debugCreateInfo);
-    instanceCreateInfo.pNext = static_cast<VkDebugUtilsMessengerCreateInfoEXT *>(&debugCreateInfo);
-
-    if (vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance) != VK_SUCCESS)
-        throw std::runtime_error("Failed to create instance.");
-
-    std::cout << "VkInstance created.\n";
-}
-void CApp::CreateSurface()
-{
-    if (!mp_window)
-    {
-        throw std::runtime_error("Window doesn't exist, create it first.");
-    }
-
-    const auto res = glfwCreateWindowSurface(m_instance, mp_window->Window(), nullptr, &m_surface);
-    if (res != VK_SUCCESS)
-        throw std::runtime_error("Failed to create surface.");
-}
-
-std::vector<VkPhysicalDevice> CApp::FindPhysicalDevices()
-{
-    uint32_t deviceCount;
-    if (vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr) != VK_SUCCESS)
-        throw std::runtime_error("Failed to get any physical device.");
-
-    std::vector<VkPhysicalDevice> devices(deviceCount);
-    vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices.data());
-
-    return devices;
-}
-
-std::vector<VkQueueFamilyProperties> CApp::FindQueueFamilies(VkPhysicalDevice const &device)
-{
-    uint32_t queueFamilyCount;
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
-
-    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
-
-    return queueFamilies;
-}
-
-bool CApp::IsDeviceSuitable(const VkPhysicalDevice &device)
-{
-    const auto extensionsValid = CVulkanHelpers::CheckForVulkanExtensions(device, m_appInfo.deviceExtensions);
-    GetSwapchainSupportDetails(device);
-
-    return m_queueFamilies.HaveValues() && extensionsValid && !m_swapchainSupportDetails.surfaceFormats.empty() &&
-           !m_swapchainSupportDetails.surfacePresentModes.empty();
-}
-
-void CApp::CreatePhysicalDevice()
-{
-    const auto devices = FindPhysicalDevices();
-    for (const auto &device : devices)
-    {
-        const auto queueFamilies = FindQueueFamilies(device);
-
-        uint32_t index = 0;
-        for (const auto &family : queueFamilies)
-        {
-            if (family.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-            {
-                m_queueFamilies.graphicsFamilyIndex = index;
-            }
-
-            VkBool32 isSupported;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device, index, m_surface, &isSupported);
-            if (isSupported)
-            {
-                m_queueFamilies.presentFamilyIndex = index;
-            }
-
-            // If device has the necessary conditions use it
-            if (m_queueFamilies.HaveValues())
-            {
-                break;
-            }
-
-            ++index;
-        }
-
-        if (IsDeviceSuitable(device))
-            m_physicalDevice = device;
-    }
-}
-
 void CApp::CreateDevice()
 {
     float queuePriorities = 1.0f;
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    for (const auto queueIndex : m_queueFamilies.GetUniqueQueueFamilies())
+
+    for (const auto queueIndex : mp_instance->QueueFamilies().GetUniqueQueueFamilies())
     {
         VkDeviceQueueCreateInfo queueCreateInfo{};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -183,54 +69,32 @@ void CApp::CreateDevice()
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
     createInfo.pEnabledFeatures = &features;
 
-    if (vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device) != VK_SUCCESS)
+    if (vkCreateDevice(mp_instance->PhysicalDevice(), &createInfo, nullptr, &m_device) != VK_SUCCESS)
         throw std::runtime_error("Failed to create device.");
 }
 
 void CApp::CreateQueues()
 {
     // Graphics Queue
-    vkGetDeviceQueue(m_device, m_queueFamilies.graphicsFamilyIndex.value(), 0, &m_graphicsQueue);
-    vkGetDeviceQueue(m_device, m_queueFamilies.presentFamilyIndex.value(), 0, &m_presentQueue);
-}
-
-void CApp::GetSwapchainSupportDetails(const VkPhysicalDevice &device)
-{
-    if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_surface, &m_swapchainSupportDetails.surfaceCapabilities) !=
-        VK_SUCCESS)
-        throw std::runtime_error("Failed to get surface capabilities");
-
-    uint32_t formatCount;
-    if (vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_surface, &formatCount, nullptr) != VK_SUCCESS)
-        throw std::runtime_error("Failed to get surface formats.");
-    m_swapchainSupportDetails.surfaceFormats.resize(formatCount);
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_surface, &formatCount,
-                                         m_swapchainSupportDetails.surfaceFormats.data());
-
-    uint32_t presentModeCount;
-    if (vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, &presentModeCount, nullptr) != VK_SUCCESS)
-        throw std::runtime_error("Failed to get surface present modes.");
-
-    m_swapchainSupportDetails.surfacePresentModes.resize(presentModeCount);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, &presentModeCount,
-                                              m_swapchainSupportDetails.surfacePresentModes.data());
+    vkGetDeviceQueue(m_device, mp_instance->QueueFamilies().graphicsFamilyIndex.value(), 0, &m_graphicsQueue);
+    vkGetDeviceQueue(m_device, mp_instance->QueueFamilies().presentFamilyIndex.value(), 0, &m_presentQueue);
 }
 
 VkSurfaceFormatKHR CApp::GetOptimalSurfaceFormat()
 {
-    for (const auto &format : m_swapchainSupportDetails.surfaceFormats)
+    for (const auto &format : mp_instance->SwapchainSupport().surfaceFormats)
     {
         if (format.format == VK_FORMAT_B8G8R8A8_SRGB && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
         {
             return format;
         }
     }
-    return m_swapchainSupportDetails.surfaceFormats[0];
+    return mp_instance->SwapchainSupport().surfaceFormats[0];
 }
 
 VkPresentModeKHR CApp::GetOptimalPresentMode()
 {
-    for (const auto &presentMode : m_swapchainSupportDetails.surfacePresentModes)
+    for (const auto &presentMode : mp_instance->SwapchainSupport().surfacePresentModes)
     {
         if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR)
         {
@@ -242,13 +106,13 @@ VkPresentModeKHR CApp::GetOptimalPresentMode()
 
 VkExtent2D CApp::GetOptimalExtent2D()
 {
-    if (m_swapchainSupportDetails.surfaceCapabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
+    if (mp_instance->SwapchainSupport().surfaceCapabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
     {
-        return m_swapchainSupportDetails.surfaceCapabilities.currentExtent;
+        return mp_instance->SwapchainSupport().surfaceCapabilities.currentExtent;
     }
 
-    const auto minExtent = m_swapchainSupportDetails.surfaceCapabilities.minImageExtent;
-    const auto maxExtent = m_swapchainSupportDetails.surfaceCapabilities.maxImageExtent;
+    const auto minExtent = mp_instance->SwapchainSupport().surfaceCapabilities.minImageExtent;
+    const auto maxExtent = mp_instance->SwapchainSupport().surfaceCapabilities.maxImageExtent;
 
     auto width = 0;
     auto height = 0;
@@ -265,18 +129,18 @@ void CApp::CreateSwapchain()
     const auto extent = GetOptimalExtent2D();
     const auto format = GetOptimalSurfaceFormat();
     const auto presentMode = GetOptimalPresentMode();
-    std::array<uint32_t, 2> queueFamilyIndices{m_queueFamilies.graphicsFamilyIndex.value(),
-                                               m_queueFamilies.presentFamilyIndex.value()};
+    std::array<uint32_t, 2> queueFamilyIndices{mp_instance->QueueFamilies().graphicsFamilyIndex.value(),
+                                               mp_instance->QueueFamilies().presentFamilyIndex.value()};
 
     // Triple-buffering if possible
-    const auto imageCount = std::clamp(m_swapchainSupportDetails.surfaceCapabilities.minImageCount,
-                                       m_swapchainSupportDetails.surfaceCapabilities.minImageCount + 1,
-                                       m_swapchainSupportDetails.surfaceCapabilities.maxImageCount);
+    const auto imageCount = std::clamp(mp_instance->SwapchainSupport().surfaceCapabilities.minImageCount,
+                                       mp_instance->SwapchainSupport().surfaceCapabilities.minImageCount + 1,
+                                       mp_instance->SwapchainSupport().surfaceCapabilities.maxImageCount);
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     createInfo.pNext = nullptr;
-    createInfo.surface = m_surface;
+    createInfo.surface = mp_instance->Surface();
     createInfo.presentMode = presentMode;
     createInfo.imageFormat = format.format;
     createInfo.imageColorSpace = format.colorSpace;
@@ -285,11 +149,12 @@ void CApp::CreateSwapchain()
     // We're rendering directly into the swapchain, if we wanted post-processing this would be something else
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     createInfo.minImageCount = imageCount;
-    createInfo.preTransform = m_swapchainSupportDetails.surfaceCapabilities.currentTransform;
+    createInfo.preTransform = mp_instance->SwapchainSupport().surfaceCapabilities.currentTransform;
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
-    if (m_queueFamilies.graphicsFamilyIndex.value() == m_queueFamilies.presentFamilyIndex.value())
+    if (mp_instance->QueueFamilies().graphicsFamilyIndex.value() ==
+        mp_instance->QueueFamilies().presentFamilyIndex.value())
     {
         createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     }
@@ -312,7 +177,7 @@ void CApp::RecreateSwapchain()
 
     CleanupSwapchain();
 
-    GetSwapchainSupportDetails(m_physicalDevice);
+    mp_instance->UpdateSwaphchainSupport();
     CreateSwapchain();
     CreateSwapchainImages();
     CreateImageViews();
@@ -396,31 +261,7 @@ void CApp::CreateImageViews()
 
 VkShaderModule CApp::CreateShaderModule(const std::string &shaderFile, const EShaderType shaderType)
 {
-    // Read the glsl file
-    const auto glsl = CFileOps::ReadShader(shaderFile);
-
-    shaderc::Compiler compiler;
-    shaderc::CompileOptions compileOptions;
-    compileOptions.SetOptimizationLevel(shaderc_optimization_level_performance);
-    std::string source;
-    // Compile glsl to spv
-    shaderc_shader_kind shaderKind;
-    switch (shaderType)
-    {
-    case EShaderType::Frag:
-        shaderKind = shaderc_glsl_fragment_shader;
-        break;
-    case EShaderType::Vert:
-        shaderKind = shaderc_glsl_vertex_shader;
-        break;
-    default:
-        throw std::runtime_error("Failed - Shader type not supported.");
-    }
-    const auto module =
-        compiler.CompileGlslToSpv(glsl.data(), glsl.size(), shaderKind, "shader", "main", compileOptions);
-    if (const auto status = module.GetCompilationStatus(); status != shaderc_compilation_status_success)
-        throw std::runtime_error(module.GetErrorMessage());
-    std::vector<uint32_t> spirv(module.cbegin(), module.cend());
+    const auto spirv = CShaderUtils::ConvertGlslToSpirv(shaderFile, shaderType);
 
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -534,7 +375,7 @@ void CApp::CreateBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags mem
     createInfo.usage = usageFlags;
     createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     createInfo.queueFamilyIndexCount = 1;
-    createInfo.pQueueFamilyIndices = &m_queueFamilies.graphicsFamilyIndex.value();
+    createInfo.pQueueFamilyIndices = mp_instance->QueueFamilies().GraphicsFamily();
 
     if (vkCreateBuffer(m_device, &createInfo, nullptr, &buffer) != VK_SUCCESS)
         throw std::runtime_error("Failed to create buffer.");
@@ -654,7 +495,7 @@ void CApp::CreateDepthImage()
     createInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     createInfo.queueFamilyIndexCount = 1;
-    createInfo.pQueueFamilyIndices = &m_queueFamilies.graphicsFamilyIndex.value();
+    createInfo.pQueueFamilyIndices = mp_instance->QueueFamilies().GraphicsFamily();
     createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     if (const auto res = vkCreateImage(m_device, &createInfo, nullptr, &m_depthImage); res != VK_SUCCESS)
@@ -695,7 +536,7 @@ VkFormat CApp::FindDepthFormat(std::vector<VkFormat> formats, VkImageTiling tili
     for (const auto &format : formats)
     {
         VkFormatProperties formatProperties;
-        vkGetPhysicalDeviceFormatProperties(m_physicalDevice, format, &formatProperties);
+        vkGetPhysicalDeviceFormatProperties(mp_instance->PhysicalDevice(), format, &formatProperties);
 
         if (tiling == VK_IMAGE_TILING_LINEAR && (flags & formatProperties.linearTilingFeatures) == flags)
         {
@@ -740,7 +581,7 @@ void CApp::CreateTexImage()
     createInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     createInfo.queueFamilyIndexCount = 1;
-    createInfo.pQueueFamilyIndices = &m_queueFamilies.graphicsFamilyIndex.value();
+    createInfo.pQueueFamilyIndices = mp_instance->QueueFamilies().GraphicsFamily();
     createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     if (const auto res = vkCreateImage(m_device, &createInfo, nullptr, &m_texImage); res != VK_SUCCESS)
@@ -875,7 +716,7 @@ void CApp::CreateSampler()
 uint32_t CApp::FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags flags)
 {
     VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
-    vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &deviceMemoryProperties);
+    vkGetPhysicalDeviceMemoryProperties(mp_instance->PhysicalDevice(), &deviceMemoryProperties);
 
     for (auto i = 0; i != deviceMemoryProperties.memoryTypeCount; ++i)
     {
@@ -1111,7 +952,7 @@ void CApp::CreateCommandPool()
 {
     VkCommandPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    createInfo.queueFamilyIndex = m_queueFamilies.graphicsFamilyIndex.value();
+    createInfo.queueFamilyIndex = *mp_instance->QueueFamilies().GraphicsFamily();
 
     if (vkCreateCommandPool(m_device, &createInfo, nullptr, &m_commandPool) != VK_SUCCESS)
         throw std::runtime_error("Failed to create command pool.");
@@ -1263,7 +1104,7 @@ void CApp::Draw()
 
 void CApp::LoadObject(std::string objFile)
 {
-    m_vikingRoom = CObjLoader::LoadObj(objFile);
+    m_vikingRoom = CModelLoader::LoadObjModel(objFile);
 
     m_vertices = m_vikingRoom.vertices;
     m_indices = m_vikingRoom.indices;
@@ -1313,7 +1154,4 @@ void CApp::Cleanup()
         vkFreeMemory(m_device, memory, nullptr);
     }
     vkDestroyDevice(m_device, nullptr);
-
-    mp_validationLayer->DestroyDebugMessenger(m_instance);
-    vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 }

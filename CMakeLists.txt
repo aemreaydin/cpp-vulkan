@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.16)
 project(vulkan_starter)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -31,5 +31,5 @@ include_directories(ThirdParty/loaders)
 
 include_directories(src)
 file(GLOB SRC "src/*.cpp")
-add_executable(vulkan00 main.cpp ${SRC} src/CImageLoader.cpp src/CImageLoader.hpp)
+add_executable(vulkan00 main.cpp ${SRC})
 target_link_libraries(vulkan00 ${LIBS})

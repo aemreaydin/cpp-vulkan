@@ -1,4 +1,4 @@
-#include "graphicsPipelineStates.hpp"
+#include "SGraphicsPipelineStates.hpp"
 #include "Primitives.hpp"
 
 SGraphicsPipelineStates::SGraphicsPipelineStates(const VkPipelineColorBlendAttachmentState &attachmentState,

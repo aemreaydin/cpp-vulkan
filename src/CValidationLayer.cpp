@@ -1,5 +1,5 @@
-#include "validationLayer.hpp"
-#include "vulkanHelpers.hpp"
+#include "CValidationLayer.hpp"
+#include "CVulkanHelpers.hpp"
 
 // TODO add debug check
 // const bool kEnableValidationLayers = true;

@@ -5,8 +5,8 @@
 
 class CModel;
 
-class CObjLoader
+class CModelLoader
 {
   public:
-    static CModel LoadObj(std::string objFile);
+    static CModel LoadObjModel(std::string objFile);
 };

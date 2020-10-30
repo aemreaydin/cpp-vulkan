@@ -5,9 +5,13 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
-struct CModel
+class CModel
 {
+  public:
     std::string name;
     std::vector<SVertex> vertices;
     std::vector<uint16_t> indices;
+
+    uint32_t GetVerticesSize();
+    uint32_t GetIndicesSize();
 };

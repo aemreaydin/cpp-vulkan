@@ -6,28 +6,26 @@
 #include <memory>
 #include <vector>
 
-#include "AppInfo.hpp"
+#include "appInfo.hpp"
 
-#include "Model.hpp"
+#include "CInstance.hpp"
+#include "CModel.hpp"
+#include "CShaderUtils.hpp"
+#include "CSwapchainSupport.hpp"
+#include "CValidationLayer.hpp"
+#include "CVulkanHelpers.hpp"
+#include "CWindow.hpp"
 #include "Primitives.hpp"
-#include "Window.hpp"
-#include "queueFamilies.hpp"
-#include "swapchainSupportDetails.hpp"
-#include "validationLayer.hpp"
-#include "vulkanHelpers.hpp"
+#include "SQueueFamilies.hpp"
 
 struct SGraphicsPipelineStates;
-enum class EShaderType;
 
 class CApp
 {
   private:
-    VkInstance m_instance = VK_NULL_HANDLE;
-    VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
     VkDevice m_device = VK_NULL_HANDLE;
     VkQueue m_graphicsQueue = VK_NULL_HANDLE;
     VkQueue m_presentQueue = VK_NULL_HANDLE;
-    VkSurfaceKHR m_surface = VK_NULL_HANDLE;
     VkFormat m_format;
     VkExtent2D m_extent;
     VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;
@@ -55,18 +53,16 @@ class CApp
     VkDeviceMemory m_depthImageMemory;
     VkFormat m_depthFormat;
 
+    SAppInfo m_appInfo;
+
     std::vector<VkBuffer> m_uniformBuffers;
     std::vector<VkDeviceMemory> m_uniformMemories;
     VkDescriptorPool m_uniformDescPool = VK_NULL_HANDLE;
     VkDescriptorSetLayout m_descriptorLayout = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> m_descriptorSets;
 
-    SAppInfo m_appInfo;
-    SQueueFamilies m_queueFamilies;
-    SSwapchainSupportDetails m_swapchainSupportDetails;
-
-    std::unique_ptr<CValidationLayer> mp_validationLayer;
     std::unique_ptr<CWindow> mp_window;
+    std::unique_ptr<CInstance> mp_instance;
 
     CModel m_vikingRoom{};
     std::vector<SVertex> m_vertices;
@@ -76,18 +72,12 @@ class CApp
     SMVP m_mvp{};
 
     // Instance creation
-    void CreateInstance();
     // Physical Device creation
-    std::vector<VkPhysicalDevice> FindPhysicalDevices();
-    std::vector<VkQueueFamilyProperties> FindQueueFamilies(const VkPhysicalDevice &device);
-    bool IsDeviceSuitable(const VkPhysicalDevice &device);
-    void CreatePhysicalDevice();
     // Logical Device creation
     void CreateDevice();
     // Queue creation
     void CreateQueues();
     // Swapchain creation
-    void GetSwapchainSupportDetails(const VkPhysicalDevice &device);
     VkSurfaceFormatKHR GetOptimalSurfaceFormat();
     VkPresentModeKHR GetOptimalPresentMode();
     VkExtent2D GetOptimalExtent2D();
@@ -132,8 +122,6 @@ class CApp
 
     VkFormat FindDepthFormat(std::vector<VkFormat> formats, VkImageTiling tiling, VkFormatFeatureFlags flags);
     uint32_t FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags flags);
-    // Surface creation
-    void CreateSurface();
     // Semaphore creation
     void CreateSemaphores();
     void CreateFences();

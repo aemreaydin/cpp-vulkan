@@ -9,13 +9,23 @@ struct SQueueFamilies
     std::optional<uint32_t> graphicsFamilyIndex;
     std::optional<uint32_t> presentFamilyIndex;
 
-    std::set<uint32_t> GetUniqueQueueFamilies()
+    inline std::set<uint32_t> GetUniqueQueueFamilies() const
     {
         return std::set<uint32_t>{graphicsFamilyIndex.value(), presentFamilyIndex.value()};
     }
 
-    bool HaveValues()
+    inline bool HaveValues() const
     {
         return graphicsFamilyIndex.has_value() && presentFamilyIndex.has_value();
+    }
+
+    inline const uint32_t *GraphicsFamily() const
+    {
+        return &graphicsFamilyIndex.value();
+    }
+
+    inline const uint32_t *PresentFamily() const
+    {
+        return &presentFamilyIndex.value();
     }
 };

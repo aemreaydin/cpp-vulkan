@@ -1,4 +1,4 @@
-#include "Window.hpp"
+#include "CWindow.hpp"
 #include <iostream>
 
 void ErrorCallback(int error, const char *desc)

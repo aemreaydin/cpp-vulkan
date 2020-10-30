@@ -3,7 +3,7 @@
 #include <array>
 #include <vulkan/vulkan.h>
 
-class SGraphicsPipelineStates
+struct SGraphicsPipelineStates
 {
   public:
     VkPipelineVertexInputStateCreateInfo vertexInputState;
