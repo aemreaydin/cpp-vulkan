@@ -10,7 +10,7 @@
 
 CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
 {
-    LoadObject("../assets/models/viking_room.obj");
+    LoadObject("./assets/models/viking_room.obj");
 
     // Create GLFW window
     mp_window = std::make_unique<CWindow>(appInfo.width, appInfo.height);
@@ -553,7 +553,7 @@ VkFormat CApp::FindDepthFormat(std::vector<VkFormat> formats, VkImageTiling tili
 void CApp::CreateTexImage()
 {
     int width, height, channels;
-    const auto imageData = CImageLoader::Load2DImage("../assets/textures/viking_room.png", width, height, channels);
+    const auto imageData = CImageLoader::Load2DImage("./assets/textures/viking_room.png", width, height, channels);
     const auto imageSize = width * height * 4;
 
     VkBuffer stagingBuffer;
@@ -865,10 +865,10 @@ void CApp::CreateUniformDescriptors()
 void CApp::CreateGraphicsPipeline()
 {
     // Create the shader modules
-    const auto vertModule = CreateShaderModule("../assets/shaders/simple.vert", EShaderType::Vert);
+    const auto vertModule = CreateShaderModule("./assets/shaders/simple.vert", EShaderType::Vert);
     const auto vertStageInfo = CreateShaderPipelineStage(vertModule, EShaderType::Vert);
 
-    const auto fragModule = CreateShaderModule("../assets/shaders/simple.frag", EShaderType::Frag);
+    const auto fragModule = CreateShaderModule("./assets/shaders/simple.frag", EShaderType::Frag);
     const auto fragStageInfo = CreateShaderPipelineStage(fragModule, EShaderType::Frag);
 
     const std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{vertStageInfo, fragStageInfo};

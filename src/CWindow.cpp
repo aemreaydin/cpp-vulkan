@@ -33,3 +33,8 @@ void CWindow::Terminate() const
     glfwDestroyWindow(mp_window);
     glfwTerminate();
 }
+
+CWindow::~CWindow()
+{
+    Terminate();
+}

@@ -11,7 +11,6 @@
 #include "CInstance.hpp"
 #include "CModel.hpp"
 #include "CShaderUtils.hpp"
-#include "CSwapchainSupport.hpp"
 #include "CValidationLayer.hpp"
 #include "CVulkanHelpers.hpp"
 #include "CWindow.hpp"

@@ -10,14 +10,14 @@ class CWindow
     GLFWwindow *mp_window;
 
     void InitWindow();
+    void Terminate() const;
 
   public:
     CWindow(uint32_t width, uint32_t height);
+    ~CWindow();
 
-    GLFWwindow *Window() const
+    inline GLFWwindow *Window() const
     {
         return mp_window;
     }
-
-    void Terminate() const;
 };

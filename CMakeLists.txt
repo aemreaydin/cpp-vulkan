@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.16)
-project(vulkan_starter)
+cmake_minimum_required(VERSION 3.17)
+project(vulkan00)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -29,7 +29,15 @@ list(APPEND LIBS glfw)
 include_directories(ThirdParty/glm)
 include_directories(ThirdParty/loaders)
 
+# Copy assets to build
+
 include_directories(src)
 file(GLOB SRC "src/*.cpp")
 add_executable(vulkan00 main.cpp ${SRC})
 target_link_libraries(vulkan00 ${LIBS})
+
+set(ASSETS ${CMAKE_SOURCE_DIR}/assets)
+set(DESTINATION_ASSETS ${CMAKE_CURRENT_BINARY_DIR}/assets)
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${ASSETS} ${DESTINATION_ASSETS}
+        COMMENT "copy folder from ${ASSETS} => ${DESTINATION_ASSETS}")
