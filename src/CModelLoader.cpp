@@ -1,9 +1,10 @@
 #include "CModelLoader.hpp"
-#include "CModel.hpp"
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tinyobjloader/tiny_obj_loader.h>
 
-CModel CModelLoader::LoadObjModel(std::string objFile)
+#include "Primitives.hpp"
+
+SMesh CModelLoader::LoadObjModel(std::string objFile)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -22,10 +23,10 @@ CModel CModelLoader::LoadObjModel(std::string objFile)
         throw std::runtime_error("Failed to load object.");
 
     // TODO this only takes the first shape
-    CModel model;
-    model.vertices.resize(attrib.vertices.size() / 3);
-    model.indices.resize(shapes[0].mesh.indices.size());
-    model.name = shapes[0].name;
+    SMesh mesh;
+    mesh.vertices.resize(attrib.vertices.size() / 3);
+    mesh.indices.resize(shapes[0].mesh.indices.size());
+    mesh.name = shapes[0].name;
 
     auto indexIndex = 0;
     for (size_t s = 0; s != 1; ++s)
@@ -48,12 +49,12 @@ CModel CModelLoader::LoadObjModel(std::string objFile)
                 vertex.position = {vx, vy, vz};
                 vertex.uv = {tx, ty};
 
-                model.vertices[ind.vertex_index] = vertex;
-                model.indices[indexIndex++] = ind.vertex_index;
+                mesh.vertices[ind.vertex_index] = vertex;
+                mesh.indices[indexIndex++] = ind.vertex_index;
             }
             index_offset += fv;
         }
     }
 
-    return model;
+    return mesh;
 }

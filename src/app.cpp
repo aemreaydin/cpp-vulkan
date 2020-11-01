@@ -10,7 +10,6 @@
 
 CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
 {
-    LoadObject("./assets/models/viking_room.obj");
 
     // Create GLFW window
     mp_window = std::make_unique<CWindow>(appInfo.width, appInfo.height);
@@ -21,13 +20,16 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     // Create Vulkan device and the rest
     CreateDevice();
     CreateQueues();
+    CreateCommandPool();
+    // Create the buffer and image manager
+    mp_bufferImageManager =
+        std::make_unique<CBufferImageManager>(mp_instance->PhysicalDevice(), m_device, m_graphicsQueue, m_commandPool);
+    m_vikingRoom = CModel("../assets/models/viking_room.obj", *mp_bufferImageManager);
+
     CreateSwapchain();
     CreateSwapchainImages();
     CreateImageViews();
-    CreateCommandPool();
     CreateDescriptorPool();
-    CreateVertexBuffer();
-    CreateIndexBuffer();
     CreateTexImage();
     CreateTexImageView();
     CreateSampler();
@@ -433,49 +435,49 @@ void CApp::CopyBuffer(VkBuffer &src, VkBuffer &dst, VkDeviceSize size)
     vkFreeCommandBuffers(m_device, m_commandPool, 1, &stagingCmd);
 }
 
-void CApp::CreateVertexBuffer()
-{
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingMemory;
-    CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, m_verticesSize,
-                 stagingBuffer, stagingMemory);
-
-    void *data;
-    vkMapMemory(m_device, stagingMemory, 0, m_verticesSize, 0, &data);
-    memcpy(data, m_vertices.data(), m_verticesSize);
-    vkUnmapMemory(m_device, stagingMemory);
-
-    CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_verticesSize, m_vertexBuffer, m_vertexMemory);
-
-    CopyBuffer(stagingBuffer, m_vertexBuffer, m_verticesSize);
-
-    vkFreeMemory(m_device, stagingMemory, nullptr);
-    vkDestroyBuffer(m_device, stagingBuffer, nullptr);
-}
-
-void CApp::CreateIndexBuffer()
-{
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingMemory;
-    CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, m_indicesSize,
-                 stagingBuffer, stagingMemory);
-
-    void *data;
-    vkMapMemory(m_device, stagingMemory, 0, m_indicesSize, 0, &data);
-    memcpy(data, m_indices.data(), m_indicesSize);
-    vkUnmapMemory(m_device, stagingMemory);
-
-    CreateBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_indicesSize, m_indexBuffer, m_indexMemory);
-
-    CopyBuffer(stagingBuffer, m_indexBuffer, m_indicesSize);
-
-    vkFreeMemory(m_device, stagingMemory, nullptr);
-    vkDestroyBuffer(m_device, stagingBuffer, nullptr);
-}
+// void CApp::CreateVertexBuffer()
+//{
+//    VkBuffer stagingBuffer;
+//    VkDeviceMemory stagingMemory;
+//    CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+//                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+//                 m_vikingRoom.GetVerticesSize(), stagingBuffer, stagingMemory);
+//
+//    void *data;
+//    vkMapMemory(m_device, stagingMemory, 0, m_vikingRoom.GetVerticesSize(), 0, &data);
+//    memcpy(data, m_vikingRoom.m_vertices.data(), m_vikingRoom.GetVerticesSize());
+//    vkUnmapMemory(m_device, stagingMemory);
+//
+//    CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+//                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_vikingRoom.GetVerticesSize(), m_vertexBuffer, m_vertexMemory);
+//
+//    CopyBuffer(stagingBuffer, m_vertexBuffer, m_vikingRoom.GetVerticesSize());
+//
+//    vkFreeMemory(m_device, stagingMemory, nullptr);
+//    vkDestroyBuffer(m_device, stagingBuffer, nullptr);
+//}
+//
+// void CApp::CreateIndexBuffer()
+//{
+//    VkBuffer stagingBuffer;
+//    VkDeviceMemory stagingMemory;
+//    CreateBuffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+//                 VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+//                 m_vikingRoom.GetIndicesSize(), stagingBuffer, stagingMemory);
+//
+//    void *data;
+//    vkMapMemory(m_device, stagingMemory, 0, m_vikingRoom.GetIndicesSize(), 0, &data);
+//    memcpy(data, m_vikingRoom.m_indices.data(), m_vikingRoom.GetIndicesSize());
+//    vkUnmapMemory(m_device, stagingMemory);
+//
+//    CreateBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+//                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_vikingRoom.GetIndicesSize(), m_indexBuffer, m_indexMemory);
+//
+//    CopyBuffer(stagingBuffer, m_indexBuffer, m_vikingRoom.GetIndicesSize());
+//
+//    vkFreeMemory(m_device, stagingMemory, nullptr);
+//    vkDestroyBuffer(m_device, stagingBuffer, nullptr);
+//}
 
 void CApp::CreateDepthImage()
 {
@@ -553,7 +555,7 @@ VkFormat CApp::FindDepthFormat(std::vector<VkFormat> formats, VkImageTiling tili
 void CApp::CreateTexImage()
 {
     int width, height, channels;
-    const auto imageData = CImageLoader::Load2DImage("./assets/textures/viking_room.png", width, height, channels);
+    const auto imageData = CImageLoader::Load2DImage("../assets/textures/viking_room.png", width, height, channels);
     const auto imageSize = width * height * 4;
 
     VkBuffer stagingBuffer;
@@ -733,13 +735,16 @@ uint32_t CApp::FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags fla
 
 void CApp::CreateDescriptorPool()
 {
-    std::array<VkDescriptorPoolSize, 2> pools{};
+    std::array<VkDescriptorPoolSize, 3> pools{};
 
     pools[0].descriptorCount = static_cast<uint32_t>(m_images.size());
     pools[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
     pools[1].descriptorCount = static_cast<uint32_t>(m_images.size());
     pools[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
+    pools[2].descriptorCount = static_cast<uint32_t>(m_images.size());
+    pools[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
     VkDescriptorPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -753,7 +758,7 @@ void CApp::CreateDescriptorPool()
 
 void CApp::CreateDescriptorSetLayout(VkDescriptorSetLayout &layout)
 {
-    std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
+    std::array<VkDescriptorSetLayoutBinding, 3> bindings{};
     bindings[0].descriptorCount = 1;
     bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -763,6 +768,11 @@ void CApp::CreateDescriptorSetLayout(VkDescriptorSetLayout &layout)
     bindings[1].descriptorCount = 1;
     bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     bindings[1].binding = 1;
+
+    bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    bindings[2].descriptorCount = 1;
+    bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    bindings[2].binding = 2;
 
     VkDescriptorSetLayoutCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -794,12 +804,17 @@ void CApp::CreateDescriptorSets(VkDescriptorSet *descriptorSets)
         bufferInfo.offset = 0;
         bufferInfo.range = sizeof(SMVP);
 
+        VkDescriptorBufferInfo colorInfo{};
+        colorInfo.buffer = m_uniformBuffers[i];
+        colorInfo.offset = offsetof(SUBO, timeColor);
+        colorInfo.range = sizeof(glm::vec3);
+
         VkDescriptorImageInfo imageInfo{};
         imageInfo.sampler = m_texSampler;
         imageInfo.imageView = m_texImageView;
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        std::array<VkWriteDescriptorSet, 2> sets{};
+        std::array<VkWriteDescriptorSet, 3> sets{};
         sets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         sets[0].dstSet = m_descriptorSets[i];
         sets[0].dstBinding = 0;
@@ -816,6 +831,14 @@ void CApp::CreateDescriptorSets(VkDescriptorSet *descriptorSets)
         sets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         sets[1].pImageInfo = &imageInfo;
 
+        sets[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        sets[2].dstSet = m_descriptorSets[i];
+        sets[2].dstBinding = 2;
+        sets[2].dstArrayElement = 0;
+        sets[2].descriptorCount = 1;
+        sets[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        sets[2].pBufferInfo = &colorInfo;
+
         vkUpdateDescriptorSets(m_device, sets.size(), sets.data(), 0, nullptr);
     }
 }
@@ -828,7 +851,7 @@ void CApp::CreateUniformBuffers()
     {
 
         CreateBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, sizeof(SMVP),
+                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, sizeof(SUBO),
                      m_uniformBuffers[i], m_uniformMemories[i]);
     }
 }
@@ -841,17 +864,18 @@ void CApp::UpdateUniformBuffers(uint32_t frameIndex)
     const auto currentTime = std::chrono::high_resolution_clock::now();
     const auto time = std::chrono::duration<float, std::chrono::seconds ::period>(currentTime - startTime).count();
 
-    m_mvp.model = glm::scale(glm::mat4(1.0f), glm::vec3(2.0f));
-    m_mvp.model *= glm::rotate(glm::mat4(1.0f), time * glm::radians(30.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    m_mvp.view = glm::lookAt(glm::vec3(0.0f, 0.1f, 10.0f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    m_mvp.projection =
+    m_subo.mvp.model = glm::scale(glm::mat4(1.0f), glm::vec3(2.0f));
+    m_subo.mvp.model *= glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    m_subo.mvp.view = glm::lookAt(glm::vec3(0.0f, 0.1f, 10.0f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    m_subo.mvp.projection =
         glm::perspective(glm::radians(45.0f), m_extent.width / static_cast<float>(m_extent.height), 0.1f, 100.0f);
     //    m_mvp.projection = glm::ortho(-2.0f, 2.0f, 2.0f, -2.0f, 0.1f, 10.0f);
-    m_mvp.projection[1][1] *= -1;
+    m_subo.mvp.projection[1][1] *= -1;
+    m_subo.timeColor.x = std::clamp(glm::sin(time), 0.0f, 1.0f);
 
     void *data;
-    vkMapMemory(m_device, m_uniformMemories[frameIndex], 0, sizeof(SMVP), 0, &data);
-    memcpy(data, &m_mvp, sizeof(SMVP));
+    vkMapMemory(m_device, m_uniformMemories[frameIndex], 0, sizeof(SUBO), 0, &data);
+    memcpy(data, &m_subo, sizeof(SUBO));
     vkUnmapMemory(m_device, m_uniformMemories[frameIndex]);
 }
 
@@ -865,10 +889,10 @@ void CApp::CreateUniformDescriptors()
 void CApp::CreateGraphicsPipeline()
 {
     // Create the shader modules
-    const auto vertModule = CreateShaderModule("./assets/shaders/simple.vert", EShaderType::Vert);
+    const auto vertModule = CreateShaderModule("../assets/shaders/simple.vert", EShaderType::Vert);
     const auto vertStageInfo = CreateShaderPipelineStage(vertModule, EShaderType::Vert);
 
-    const auto fragModule = CreateShaderModule("./assets/shaders/simple.frag", EShaderType::Frag);
+    const auto fragModule = CreateShaderModule("../assets/shaders/simple.frag", EShaderType::Frag);
     const auto fragStageInfo = CreateShaderPipelineStage(fragModule, EShaderType::Frag);
 
     const std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{vertStageInfo, fragStageInfo};
@@ -1000,19 +1024,19 @@ void CApp::CreateCommandBuffers()
         vkCmdBindPipeline(m_commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
         // Bind the vertex buffer
-        VkBuffer vertexBuffers[] = {m_vertexBuffer};
+        VkBuffer vertexBuffers[] = {m_vikingRoom.GetVertexBuffer()};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(m_commandBuffers[index], 0, 1, vertexBuffers, offsets);
 
         // Bind the index buffer
-        vkCmdBindIndexBuffer(m_commandBuffers[index], m_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindIndexBuffer(m_commandBuffers[index], m_vikingRoom.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT16);
 
         // Bind the uniform buffer
         vkCmdBindDescriptorSets(m_commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
                                 &m_descriptorSets[index], 0, nullptr);
 
         // Draw
-        vkCmdDrawIndexed(m_commandBuffers[index], m_indices.size(), 1, 0, 0, 0);
+        vkCmdDrawIndexed(m_commandBuffers[index], m_vikingRoom.GetIndicesSize(), 1, 0, 0, 0);
 
         vkCmdEndRenderPass(m_commandBuffers[index]);
 
@@ -1102,15 +1126,6 @@ void CApp::Draw()
         throw std::runtime_error("Failed to present image");
 }
 
-void CApp::LoadObject(std::string objFile)
-{
-    m_vikingRoom = CModelLoader::LoadObjModel(objFile);
-
-    m_vertices = m_vikingRoom.vertices;
-    m_indices = m_vikingRoom.indices;
-    m_verticesSize = sizeof(SVertex) * m_vertices.size();
-    m_indicesSize = sizeof(uint16_t) * m_indices.size();
-}
 
 void CApp::RenderLoop()
 {
@@ -1133,14 +1148,12 @@ void CApp::Cleanup()
     vkDestroySemaphore(m_device, m_semaphoreRenderComplete, nullptr);
     vkDestroySemaphore(m_device, m_semaphorePresentComplete, nullptr);
 
+    m_vikingRoom.DestroyModel(m_device);
+
     vkDestroyImage(m_device, m_texImage, nullptr);
     vkFreeMemory(m_device, m_texMemory, nullptr);
 
     vkDestroySampler(m_device, m_texSampler, nullptr);
-    vkDestroyBuffer(m_device, m_indexBuffer, nullptr);
-    vkFreeMemory(m_device, m_indexMemory, nullptr);
-    vkDestroyBuffer(m_device, m_vertexBuffer, nullptr);
-    vkFreeMemory(m_device, m_vertexMemory, nullptr);
     vkDestroyCommandPool(m_device, m_commandPool, nullptr);
 
     vkDestroyDescriptorSetLayout(m_device, m_descriptorLayout, nullptr);

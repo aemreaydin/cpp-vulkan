@@ -3,10 +3,10 @@
 #include <iostream>
 #include <vector>
 
-class CModel;
+struct SMesh;
 
 class CModelLoader
 {
   public:
-    static CModel LoadObjModel(std::string objFile);
+    static SMesh LoadObjModel(std::string objFile);
 };

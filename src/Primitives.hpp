@@ -15,6 +15,13 @@ struct SVertex
     static std::array<VkVertexInputAttributeDescription, 2> GetAttributeBindingDescription();
 };
 
+struct SMesh
+{
+    std::string name;
+    std::vector<SVertex> vertices;
+    std::vector<uint16_t> indices;
+};
+
 struct SMVP
 {
     glm::mat4 model;

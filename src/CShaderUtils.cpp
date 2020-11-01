@@ -28,7 +28,10 @@ std::vector<uint32_t> CShaderUtils::ConvertGlslToSpirv(const std::string &filena
     const auto module =
         compiler.CompileGlslToSpv(glsl.data(), glsl.size(), GetShaderKind(shaderType), "shader", compileOptions);
     if (const auto status = module.GetCompilationStatus(); status != shaderc_compilation_status_success)
-        throw std::runtime_error(module.GetErrorMessage());
+    {
+        fprintf(stderr, "%s", module.GetErrorMessage().c_str());
+        exit(-1);
+    }
 
     return {module.cbegin(), module.cend()};
 }

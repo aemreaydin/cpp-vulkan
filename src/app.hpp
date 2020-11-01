@@ -8,6 +8,7 @@
 
 #include "appInfo.hpp"
 
+#include "CBufferImageManager.hpp"
 #include "CInstance.hpp"
 #include "CModel.hpp"
 #include "CShaderUtils.hpp"
@@ -39,10 +40,6 @@ class CApp
     VkSemaphore m_semaphoreRenderComplete = VK_NULL_HANDLE;
     VkSemaphore m_semaphorePresentComplete = VK_NULL_HANDLE;
     std::vector<VkFence> m_fences;
-    VkBuffer m_vertexBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory m_vertexMemory = VK_NULL_HANDLE;
-    VkBuffer m_indexBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory m_indexMemory = VK_NULL_HANDLE;
     VkImage m_texImage = VK_NULL_HANDLE;
     VkImageView m_texImageView = VK_NULL_HANDLE;
     VkDeviceMemory m_texMemory = VK_NULL_HANDLE;
@@ -62,13 +59,19 @@ class CApp
 
     std::unique_ptr<CWindow> mp_window;
     std::unique_ptr<CInstance> mp_instance;
+    std::unique_ptr<CBufferImageManager> mp_bufferImageManager;
 
-    CModel m_vikingRoom{};
-    std::vector<SVertex> m_vertices;
-    std::vector<uint16_t> m_indices;
-    VkDeviceSize m_verticesSize;
-    VkDeviceSize m_indicesSize;
+    std::vector<CModel> m_gameObjects{};
+
+    CModel m_vikingRoom;
     SMVP m_mvp{};
+
+    struct SUBO
+    {
+        SMVP mvp{};
+        glm::vec3 timeColor{};
+    };
+    SUBO m_subo;
 
     // Instance creation
     // Physical Device creation
@@ -92,8 +95,8 @@ class CApp
     void CreateBuffer(VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags, VkDeviceSize size,
                       VkBuffer &buffer, VkDeviceMemory &memory);
     void CopyBuffer(VkBuffer &src, VkBuffer &dst, VkDeviceSize size);
-    void CreateVertexBuffer();
-    void CreateIndexBuffer();
+    //    void CreateVertexBuffer();
+    //    void CreateIndexBuffer();
     void CreateDepthImage();
     // Texture Image creation
     void CreateTexImage();
@@ -130,7 +133,6 @@ class CApp
   public:
     explicit CApp(SAppInfo appInfo);
 
-    void LoadObject(std::string objFile);
     void RenderLoop();
     void Cleanup();
 };
