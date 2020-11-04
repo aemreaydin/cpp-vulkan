@@ -1,32 +1,82 @@
 #include "CBufferImageManager.hpp"
 #include <iostream>
 
-CBufferImageManager::CBufferImageManager(VkPhysicalDevice physicalDevice, VkDevice device, VkQueue queue,
-                                         VkCommandPool commandPool)
-    : m_physicalDevice(physicalDevice), m_device(device), m_queue(queue), m_commandPool(commandPool)
+CBufferImageManager::CBufferImageManager(VkPhysicalDevice physicalDevice) : m_physicalDevice(physicalDevice)
 {
 }
 
 void CBufferImageManager::CreateBuffer(const VkBufferCreateInfo createInfo, VkMemoryPropertyFlags memFlags,
                                        SBufferHandles &bufferHandles) const
 {
-    if (const auto res = vkCreateBuffer(m_device, &createInfo, nullptr, &bufferHandles.buffer); res != VK_SUCCESS)
+    if (const auto res =
+            vkCreateBuffer(CDevice::GetInstance().GetDevice(), &createInfo, nullptr, &bufferHandles.buffer);
+        res != VK_SUCCESS)
         throw std::runtime_error("Failed to create buffer.");
 
     VkMemoryRequirements memoryRequirements{};
-    vkGetBufferMemoryRequirements(m_device, bufferHandles.buffer, &memoryRequirements);
+    vkGetBufferMemoryRequirements(CDevice::GetInstance().GetDevice(), bufferHandles.buffer, &memoryRequirements);
 
     VkMemoryAllocateInfo memoryAllocateInfo{};
     memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     memoryAllocateInfo.memoryTypeIndex = FindMemoryType(memoryRequirements.memoryTypeBits, memFlags);
     memoryAllocateInfo.allocationSize = memoryRequirements.size;
 
-    if (const auto res = vkAllocateMemory(m_device, &memoryAllocateInfo, nullptr, &bufferHandles.memory);
+    if (const auto res =
+            vkAllocateMemory(CDevice::GetInstance().GetDevice(), &memoryAllocateInfo, nullptr, &bufferHandles.memory);
         res != VK_SUCCESS)
         throw std::runtime_error("Failed to create buffer device memory.");
 
-    if (const auto res = vkBindBufferMemory(m_device, bufferHandles.buffer, bufferHandles.memory, 0); res != VK_SUCCESS)
+    if (const auto res =
+            vkBindBufferMemory(CDevice::GetInstance().GetDevice(), bufferHandles.buffer, bufferHandles.memory, 0);
+        res != VK_SUCCESS)
         throw std::runtime_error("Failed to bind buffer to memory.");
+}
+
+void CBufferImageManager::CreateImage(const VkImageCreateInfo createInfo, VkMemoryPropertyFlags memFlags,
+                                      SImageHandles &imageHandles) const
+{
+    if (const auto res = vkCreateImage(CDevice::GetInstance().GetDevice(), &createInfo, nullptr, &imageHandles.image);
+        res != VK_SUCCESS)
+        throw std::runtime_error("Failed to create image.");
+
+    VkMemoryRequirements memReq;
+    vkGetImageMemoryRequirements(CDevice::GetInstance().GetDevice(), imageHandles.image, &memReq);
+
+    VkMemoryAllocateInfo allocateInfo{};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocateInfo.allocationSize = memReq.size;
+    allocateInfo.memoryTypeIndex = FindMemoryType(memReq.memoryTypeBits, memFlags);
+
+    if (const auto res =
+            vkAllocateMemory(CDevice::GetInstance().GetDevice(), &allocateInfo, nullptr, &imageHandles.memory);
+        res != VK_SUCCESS)
+        throw std::runtime_error("Failed to allocate image memory.");
+
+    if (const auto res =
+            vkBindImageMemory(CDevice::GetInstance().GetDevice(), imageHandles.image, imageHandles.memory, 0);
+        res != VK_SUCCESS)
+        throw std::runtime_error("Failed to bind image memory.");
+
+    CreateImageView(imageHandles);
+}
+
+void CBufferImageManager::CreateImageView(SImageHandles &imageHandles) const
+{
+    VkImageViewCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    createInfo.image = imageHandles.image;
+    createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    createInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    createInfo.subresourceRange.baseMipLevel = 0;
+    createInfo.subresourceRange.levelCount = 1;
+    createInfo.subresourceRange.baseArrayLayer = 0;
+    createInfo.subresourceRange.layerCount = 1;
+
+    if (const auto res =
+            vkCreateImageView(CDevice::GetInstance().GetDevice(), &createInfo, nullptr, &imageHandles.imageView);
+        res != VK_SUCCESS)
+        throw std::runtime_error("Failed to create image view.");
 }
 
 void CBufferImageManager::CopyBuffer(const VkBuffer src, const VkBufferCopy copyRegions, VkBuffer &dst) const
@@ -35,10 +85,11 @@ void CBufferImageManager::CopyBuffer(const VkBuffer src, const VkBufferCopy copy
     VkCommandBuffer commandBuffer;
     VkCommandBufferAllocateInfo allocateInfo{};
     allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocateInfo.commandPool = m_commandPool;
+    allocateInfo.commandPool = CDevice::GetInstance().GetCommandPool();
     allocateInfo.commandBufferCount = 1;
     allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    if (const auto res = vkAllocateCommandBuffers(m_device, &allocateInfo, &commandBuffer); res != VK_SUCCESS)
+    if (const auto res = vkAllocateCommandBuffers(CDevice::GetInstance().GetDevice(), &allocateInfo, &commandBuffer);
+        res != VK_SUCCESS)
         throw std::runtime_error("Failed to allocate command buffer.");
 
     // Begin command buffer for the copy
@@ -59,27 +110,29 @@ void CBufferImageManager::CopyBuffer(const VkBuffer src, const VkBufferCopy copy
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
 
-    if (const auto res = vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE); res != VK_SUCCESS)
+    if (const auto res = vkQueueSubmit(CDevice::GetInstance().GetGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+        res != VK_SUCCESS)
         throw std::runtime_error("Failed to submit queue.");
 
-    vkQueueWaitIdle(m_queue);
+    vkQueueWaitIdle(CDevice::GetInstance().GetGraphicsQueue());
 
-    vkFreeCommandBuffers(m_device, m_commandPool, 1, &commandBuffer);
+    vkFreeCommandBuffers(CDevice::GetInstance().GetDevice(), CDevice::GetInstance().GetCommandPool(), 1,
+                         &commandBuffer);
 }
 
 void CBufferImageManager::MapMemory(const SBufferHandles &bufferHandles, const VkDeviceSize offset,
                                     const VkDeviceSize size, const void *pData) const
 {
     void *data;
-    vkMapMemory(m_device, bufferHandles.memory, offset, size, 0, &data);
+    vkMapMemory(CDevice::GetInstance().GetDevice(), bufferHandles.memory, offset, size, 0, &data);
     memcpy(data, pData, size);
-    vkUnmapMemory(m_device, bufferHandles.memory);
+    vkUnmapMemory(CDevice::GetInstance().GetDevice(), bufferHandles.memory);
 }
 
 void CBufferImageManager::DestroyBufferHandles(SBufferHandles &bufferHandles) const
 {
-    vkDestroyBuffer(m_device, bufferHandles.buffer, nullptr);
-    vkFreeMemory(m_device, bufferHandles.memory, nullptr);
+    vkDestroyBuffer(CDevice::GetInstance().GetDevice(), bufferHandles.buffer, nullptr);
+    vkFreeMemory(CDevice::GetInstance().GetDevice(), bufferHandles.memory, nullptr);
 }
 
 uint32_t CBufferImageManager::FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags flags) const
@@ -99,3 +152,4 @@ uint32_t CBufferImageManager::FindMemoryType(uint32_t memoryTypeBits, VkMemoryPr
     }
     throw std::runtime_error("Failed to find a suitable memory type.");
 }
+

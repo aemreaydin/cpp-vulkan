@@ -48,6 +48,8 @@ SMesh CModelLoader::LoadObjModel(std::string objFile)
                 SVertex vertex{};
                 vertex.position = {vx, vy, vz};
                 vertex.uv = {tx, ty};
+                vertex.color = {(static_cast<double>(rand()) / (RAND_MAX)), (static_cast<double>(rand()) / (RAND_MAX)),
+                                (static_cast<double>(rand()) / (RAND_MAX))};
 
                 mesh.vertices[ind.vertex_index] = vertex;
                 mesh.indices[indexIndex++] = ind.vertex_index;

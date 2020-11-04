@@ -17,7 +17,6 @@ int main()
     SAppInfo appInfo(WIDTH, HEIGHT, gVulkanLayers, gDeviceExtensions);
     auto app = CApp(appInfo);
 
-    char *x = new char('a');
     app.RenderLoop();
 
     app.Cleanup();

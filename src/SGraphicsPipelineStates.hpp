@@ -18,12 +18,12 @@ struct SGraphicsPipelineStates
     explicit SGraphicsPipelineStates(const VkPipelineColorBlendAttachmentState &attachmentState,
                                      const VkViewport &viewport, const VkRect2D &scissors,
                                      const VkVertexInputBindingDescription &inputBindingDesc,
-                                     const std::array<VkVertexInputAttributeDescription, 2> &attributeDesc);
+                                     const std::array<VkVertexInputAttributeDescription, 3> &attributeDesc);
 
   private:
     static VkPipelineVertexInputStateCreateInfo VertexInputStateCreateInfo(
         const VkVertexInputBindingDescription &inputBindingDesc,
-        const std::array<VkVertexInputAttributeDescription, 2> &attributeDesc);
+        const std::array<VkVertexInputAttributeDescription, 3> &attributeDesc);
 
     static VkPipelineInputAssemblyStateCreateInfo InputAssemblyStateCreateInfo();
 

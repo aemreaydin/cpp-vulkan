@@ -1,5 +1,6 @@
 #pragma once
 #include "CBufferImageManager.hpp"
+#include "CDevice.hpp"
 #include "Primitives.hpp"
 
 #include <glm/glm.hpp>
@@ -10,11 +11,12 @@ class CModel
 {
   public:
     CModel() = default;
-    CModel(std::string objFile, glm::vec3 pos = glm::vec3(0.0f));
+    explicit CModel(std::string objFile, glm::vec3 pos = glm::vec3(0.0f));
 
-    void InitModel(const CBufferImageManager &manager, uint32_t numImages);
+    void InitModel();
 
-    void Draw(const VkDevice device, const VkExtent2D extent, uint32_t frameIndex);
+    void UpdateUniformBuffers();
+    void Draw() const;
 
     uint32_t GetVerticesSize() const
     {
@@ -31,12 +33,12 @@ class CModel
 
     const VkBuffer GetVertexBuffer() const
     {
-        return vertexBufferHandles.buffer;
+        return m_vertexBufferHandles.buffer;
     }
 
     const VkBuffer GetIndexBuffer() const
     {
-        return indexBufferHandles.buffer;
+        return m_indexBufferHandles.buffer;
     }
 
     const VkBuffer GetUniformBuffer(uint32_t frameIndex) const
@@ -44,16 +46,27 @@ class CModel
         return m_vecUniformBufferHandles[frameIndex].buffer;
     }
 
-    void DestroyModel(const VkDevice device);
+    const VkDescriptorSet GetDescriptorSet(uint32_t frameIndex) const
+    {
+        return m_vecDescriptorSets[frameIndex];
+    }
+
+    void ModelCleanup();
 
   private:
-    void CreateVertexBuffer(const CBufferImageManager &manager);
-    void CreateIndexBuffer(const CBufferImageManager &manager);
-    void CreateUniformBuffers(const CBufferImageManager &manager, uint32_t numImages);
+    void CreateVertexBuffer();
+    void CreateIndexBuffer();
+    void CreateUniformBuffers();
+    void CreateDescriptorSets();
+    void CreateTextureImage();
 
-    SBufferHandles vertexBufferHandles{};
-    SBufferHandles indexBufferHandles{};
+    CDevice *mp_deviceInstance;
+
+    SBufferHandles m_vertexBufferHandles{};
+    SBufferHandles m_indexBufferHandles{};
+    SImageHandles m_textureImageHandles{};
     std::vector<SBufferHandles> m_vecUniformBufferHandles{};
+    std::vector<VkDescriptorSet> m_vecDescriptorSets;
 
     SMesh m_mesh;
     SMVP m_mvp{};

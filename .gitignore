@@ -32,6 +32,7 @@
 
 # Output folders
 out/
+.vscode/
 cmake-build-debug/
 cmake-build-release/
 build/

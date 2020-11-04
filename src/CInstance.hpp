@@ -1,3 +1,4 @@
+#pragma once
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -10,7 +11,7 @@ class GLFWwindow;
 class CInstance
 {
   public:
-    explicit CInstance(SAppInfo appInfo);
+    explicit CInstance(GLFWwindow *window, SAppInfo appInfo);
     ~CInstance();
     void CreateInstance();
     void CreatePhysicalDevice();
@@ -48,6 +49,6 @@ class CInstance
     VkSurfaceKHR m_surface = VK_NULL_HANDLE;
     std::unique_ptr<CValidationLayer> mp_validationLayer;
     SQueueFamilies m_queueFamilies{};
-    SSwapchainSupport m_swapchainSupport;
+    SSwapchainSupport m_swapchainSupport{};
     SAppInfo m_appInfo;
 };

@@ -10,9 +10,10 @@ struct SVertex
 {
     glm::vec3 position;
     glm::vec2 uv;
+    glm::vec3 color;
 
     static VkVertexInputBindingDescription GetInputBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 2> GetAttributeBindingDescription();
+    static std::array<VkVertexInputAttributeDescription, 3> GetAttributeBindingDescription();
 };
 
 struct SMesh

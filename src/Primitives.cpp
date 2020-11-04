@@ -11,7 +11,7 @@ VkVertexInputBindingDescription SVertex::GetInputBindingDescription()
     return description;
 }
 
-std::array<VkVertexInputAttributeDescription, 2> SVertex::GetAttributeBindingDescription()
+std::array<VkVertexInputAttributeDescription, 3> SVertex::GetAttributeBindingDescription()
 {
     VkVertexInputAttributeDescription posDesc{};
     posDesc.binding = 0;
@@ -25,5 +25,11 @@ std::array<VkVertexInputAttributeDescription, 2> SVertex::GetAttributeBindingDes
     texDesc.format = VK_FORMAT_R32G32_SFLOAT;
     texDesc.offset = offsetof(SVertex, uv);
 
-    return {posDesc, texDesc};
+    VkVertexInputAttributeDescription colorDesc{};
+    colorDesc.binding = 0;
+    colorDesc.location = 2;
+    colorDesc.format = VK_FORMAT_R32G32B32_SFLOAT;
+    colorDesc.offset = offsetof(SVertex, color);
+
+    return {posDesc, texDesc, colorDesc};
 }

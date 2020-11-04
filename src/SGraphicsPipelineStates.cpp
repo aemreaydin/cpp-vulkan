@@ -4,7 +4,7 @@
 SGraphicsPipelineStates::SGraphicsPipelineStates(const VkPipelineColorBlendAttachmentState &attachmentState,
                                                  const VkViewport &viewport, const VkRect2D &scissors,
                                                  const VkVertexInputBindingDescription &inputBindingDesc,
-                                                 const std::array<VkVertexInputAttributeDescription, 2> &attributeDesc)
+                                                 const std::array<VkVertexInputAttributeDescription, 3> &attributeDesc)
 {
     vertexInputState = VertexInputStateCreateInfo(inputBindingDesc, attributeDesc);
     inputAssemblyState = InputAssemblyStateCreateInfo();
@@ -17,7 +17,7 @@ SGraphicsPipelineStates::SGraphicsPipelineStates(const VkPipelineColorBlendAttac
 }
 VkPipelineVertexInputStateCreateInfo SGraphicsPipelineStates::VertexInputStateCreateInfo(
     const VkVertexInputBindingDescription &inputBindingDesc,
-    const std::array<VkVertexInputAttributeDescription, 2> &attributeDesc)
+    const std::array<VkVertexInputAttributeDescription, 3> &attributeDesc)
 {
     VkPipelineVertexInputStateCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CDevice.hpp"
 #include <vulkan/vulkan.h>
 
 struct SBufferHandles
@@ -8,12 +9,24 @@ struct SBufferHandles
     VkDeviceMemory memory = VK_NULL_HANDLE;
 };
 
+struct SImageHandles
+{
+    VkImage image = VK_NULL_HANDLE;
+    VkImageView imageView = VK_NULL_HANDLE;
+    VkDeviceMemory memory = VK_NULL_HANDLE;
+};
+
 class CBufferImageManager
 {
   public:
-    CBufferImageManager(VkPhysicalDevice physicalDevice, VkDevice device, VkQueue queue, VkCommandPool commandPool);
+    explicit CBufferImageManager(VkPhysicalDevice physicalDevice);
     void CreateBuffer(const VkBufferCreateInfo createInfo, VkMemoryPropertyFlags memFlags,
                       SBufferHandles &bufferHandles) const;
+
+    void CreateImage(const VkImageCreateInfo createInfo, VkMemoryPropertyFlags memFlags,
+                     SImageHandles &imageHandles) const;
+
+    void CreateImageView(SImageHandles &imageHandles) const;
 
     void CopyBuffer(const VkBuffer src, const VkBufferCopy copyRegions, VkBuffer &dst) const;
     void MapMemory(const SBufferHandles &bufferHandles, const VkDeviceSize offset, const VkDeviceSize size,
@@ -25,7 +38,4 @@ class CBufferImageManager
     uint32_t FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags flags) const;
 
     VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
-    VkDevice m_device = VK_NULL_HANDLE;
-    VkQueue m_queue = VK_NULL_HANDLE;
-    VkCommandPool m_commandPool = VK_NULL_HANDLE;
 };

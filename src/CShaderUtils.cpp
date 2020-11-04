@@ -17,6 +17,46 @@ std::vector<char> CShaderUtils::ReadGlsl(const std::string &filename)
     return buffer;
 }
 
+VkShaderModule CShaderUtils::CreateShaderModule(const VkDevice device, const std::string &shaderFile,
+                                                const EShaderType shaderType)
+{
+    const auto spirv = CShaderUtils::ConvertGlslToSpirv(shaderFile, shaderType);
+
+    VkShaderModuleCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.codeSize = spirv.size() * sizeof(uint32_t);
+    createInfo.pCode = spirv.data();
+
+    VkShaderModule shaderModule;
+    if (const auto res = vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule); res != VK_SUCCESS)
+        throw std::runtime_error("Failed to create shader module.");
+
+    return shaderModule;
+}
+
+VkPipelineShaderStageCreateInfo CShaderUtils::ShaderPipelineStageCreateInfo(const VkShaderModule &module,
+                                                                            const EShaderType shaderType)
+{
+    VkPipelineShaderStageCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    createInfo.module = module;
+    createInfo.pName = "main";
+    // pSpecializationInfo creates a specialization constant
+    switch (shaderType)
+    {
+    case EShaderType::Frag:
+        createInfo.stage = VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT;
+        break;
+    case EShaderType::Vert:
+        createInfo.stage = VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT;
+        break;
+    default:
+        throw std::runtime_error("Shader Type doesn't exist.");
+    }
+
+    return createInfo;
+}
+
 std::vector<uint32_t> CShaderUtils::ConvertGlslToSpirv(const std::string &filename, EShaderType shaderType)
 {
     const auto glsl = CShaderUtils::ReadGlsl(filename);

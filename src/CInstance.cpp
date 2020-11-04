@@ -1,9 +1,12 @@
 #include "CInstance.hpp"
 
-CInstance::CInstance(SAppInfo appInfo) : m_appInfo(appInfo)
+CInstance::CInstance(GLFWwindow *window, SAppInfo appInfo) : m_appInfo(appInfo)
 {
     CreateInstance();
     mp_validationLayer = std::make_unique<CValidationLayer>(m_instance, appInfo.layers);
+
+    CreateSurface(window);
+    CreatePhysicalDevice();
 }
 
 void CInstance::CreateInstance()
@@ -80,7 +83,10 @@ void CInstance::CreatePhysicalDevice()
         }
 
         if (CheckIfDeviceSuitable(device))
+        {
             m_physicalDevice = device;
+            break;
+        }
     }
 }
 
