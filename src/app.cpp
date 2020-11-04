@@ -21,21 +21,23 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     CreateDevice();
     CreateQueues();
     CreateCommandPool();
-    // Create the buffer and image manager
-    mp_bufferImageManager =
-        std::make_unique<CBufferImageManager>(mp_instance->PhysicalDevice(), m_device, m_graphicsQueue, m_commandPool);
-    m_vikingRoom = CModel("../assets/models/viking_room.obj", *mp_bufferImageManager);
-
     CreateSwapchain();
     CreateSwapchainImages();
     CreateImageViews();
+    // Create the buffer and image manager
+    mp_bufferImageManager =
+        std::make_unique<CBufferImageManager>(mp_instance->PhysicalDevice(), m_device, m_graphicsQueue, m_commandPool);
+    // Create the game objects
+
+    m_vikingRoom = CModel("../assets/models/viking_room.obj");
+    m_vikingRoom.InitModel(*mp_bufferImageManager, m_images.size());
+
     CreateDescriptorPool();
     CreateTexImage();
     CreateTexImageView();
     CreateSampler();
     CreateDepthImage();
 
-    CreateUniformBuffers();
     CreateUniformDescriptors();
     CreateGraphicsPipeline();
     CreateFramebuffers();
@@ -212,7 +214,7 @@ void CApp::CleanupSwapchain()
     vkFreeMemory(m_device, m_depthImageMemory, nullptr);
     vkDestroyImage(m_device, m_depthImage, nullptr);
     vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
-    vkDestroyDescriptorPool(m_device, m_uniformDescPool, nullptr);
+    vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 }
 
 bool CApp::ShouldRecreateSwapchain()
@@ -735,7 +737,7 @@ uint32_t CApp::FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags fla
 
 void CApp::CreateDescriptorPool()
 {
-    std::array<VkDescriptorPoolSize, 3> pools{};
+    std::array<VkDescriptorPoolSize, 2> pools{};
 
     pools[0].descriptorCount = static_cast<uint32_t>(m_images.size());
     pools[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -743,22 +745,19 @@ void CApp::CreateDescriptorPool()
     pools[1].descriptorCount = static_cast<uint32_t>(m_images.size());
     pools[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
-    pools[2].descriptorCount = static_cast<uint32_t>(m_images.size());
-    pools[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-
     VkDescriptorPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     createInfo.maxSets = static_cast<uint32_t>(m_images.size());
     createInfo.poolSizeCount = pools.size();
     createInfo.pPoolSizes = pools.data();
 
-    if (vkCreateDescriptorPool(m_device, &createInfo, nullptr, &m_uniformDescPool) != VK_SUCCESS)
+    if (vkCreateDescriptorPool(m_device, &createInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
         throw std::runtime_error("Failed to create descriptor pool");
 }
 
 void CApp::CreateDescriptorSetLayout(VkDescriptorSetLayout &layout)
 {
-    std::array<VkDescriptorSetLayoutBinding, 3> bindings{};
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
     bindings[0].descriptorCount = 1;
     bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -768,11 +767,6 @@ void CApp::CreateDescriptorSetLayout(VkDescriptorSetLayout &layout)
     bindings[1].descriptorCount = 1;
     bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     bindings[1].binding = 1;
-
-    bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    bindings[2].descriptorCount = 1;
-    bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    bindings[2].binding = 2;
 
     VkDescriptorSetLayoutCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -789,7 +783,7 @@ void CApp::CreateDescriptorSets(VkDescriptorSet *descriptorSets)
     VkDescriptorSetAllocateInfo allocateInfo{};
     allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocateInfo.pSetLayouts = layouts.data();
-    allocateInfo.descriptorPool = m_uniformDescPool;
+    allocateInfo.descriptorPool = m_descriptorPool;
     allocateInfo.descriptorSetCount = static_cast<uint32_t>(m_images.size());
 
     if (auto res = vkAllocateDescriptorSets(m_device, &allocateInfo, descriptorSets); res != VK_SUCCESS)
@@ -800,21 +794,16 @@ void CApp::CreateDescriptorSets(VkDescriptorSet *descriptorSets)
     for (auto i = 0; i != m_descriptorSets.size(); ++i)
     {
         VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = m_uniformBuffers[i];
+        bufferInfo.buffer = m_vikingRoom.GetUniformBuffer(i);
         bufferInfo.offset = 0;
         bufferInfo.range = sizeof(SMVP);
-
-        VkDescriptorBufferInfo colorInfo{};
-        colorInfo.buffer = m_uniformBuffers[i];
-        colorInfo.offset = offsetof(SUBO, timeColor);
-        colorInfo.range = sizeof(glm::vec3);
 
         VkDescriptorImageInfo imageInfo{};
         imageInfo.sampler = m_texSampler;
         imageInfo.imageView = m_texImageView;
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        std::array<VkWriteDescriptorSet, 3> sets{};
+        std::array<VkWriteDescriptorSet, 2> sets{};
         sets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         sets[0].dstSet = m_descriptorSets[i];
         sets[0].dstBinding = 0;
@@ -831,57 +820,14 @@ void CApp::CreateDescriptorSets(VkDescriptorSet *descriptorSets)
         sets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         sets[1].pImageInfo = &imageInfo;
 
-        sets[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        sets[2].dstSet = m_descriptorSets[i];
-        sets[2].dstBinding = 2;
-        sets[2].dstArrayElement = 0;
-        sets[2].descriptorCount = 1;
-        sets[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        sets[2].pBufferInfo = &colorInfo;
-
         vkUpdateDescriptorSets(m_device, sets.size(), sets.data(), 0, nullptr);
     }
 }
 
-void CApp::CreateUniformBuffers()
-{
-    m_uniformBuffers.resize(m_images.size());
-    m_uniformMemories.resize(m_images.size());
-    for (auto i = 0; i != m_uniformBuffers.size(); ++i)
-    {
-
-        CreateBuffer(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, sizeof(SUBO),
-                     m_uniformBuffers[i], m_uniformMemories[i]);
-    }
-}
-
-void CApp::UpdateUniformBuffers(uint32_t frameIndex)
-{
-    // TODO do this using push constants
-    static auto startTime = std::chrono::high_resolution_clock::now();
-
-    const auto currentTime = std::chrono::high_resolution_clock::now();
-    const auto time = std::chrono::duration<float, std::chrono::seconds ::period>(currentTime - startTime).count();
-
-    m_subo.mvp.model = glm::scale(glm::mat4(1.0f), glm::vec3(2.0f));
-    m_subo.mvp.model *= glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    m_subo.mvp.view = glm::lookAt(glm::vec3(0.0f, 0.1f, 10.0f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    m_subo.mvp.projection =
-        glm::perspective(glm::radians(45.0f), m_extent.width / static_cast<float>(m_extent.height), 0.1f, 100.0f);
-    //    m_mvp.projection = glm::ortho(-2.0f, 2.0f, 2.0f, -2.0f, 0.1f, 10.0f);
-    m_subo.mvp.projection[1][1] *= -1;
-    m_subo.timeColor.x = std::clamp(glm::sin(time), 0.0f, 1.0f);
-
-    void *data;
-    vkMapMemory(m_device, m_uniformMemories[frameIndex], 0, sizeof(SUBO), 0, &data);
-    memcpy(data, &m_subo, sizeof(SUBO));
-    vkUnmapMemory(m_device, m_uniformMemories[frameIndex]);
-}
 
 void CApp::CreateUniformDescriptors()
 {
-    m_descriptorSets.resize(m_uniformBuffers.size());
+    m_descriptorSets.resize(m_images.size());
     CreateDescriptorSetLayout(m_descriptorLayout);
     CreateDescriptorSets(m_descriptorSets.data());
 }
@@ -1087,7 +1033,7 @@ void CApp::Draw()
     vkWaitForFences(m_device, 1, &m_fences[imageIndex], VK_TRUE, UINT64_MAX);
     vkResetFences(m_device, 1, &m_fences[imageIndex]);
 
-    UpdateUniformBuffers(imageIndex);
+    m_vikingRoom.Draw(m_device, m_extent, imageIndex);
 
     // start rendering the image by submitting the render
     std::array<VkPipelineStageFlags, 1> flags{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -1157,14 +1103,6 @@ void CApp::Cleanup()
     vkDestroyCommandPool(m_device, m_commandPool, nullptr);
 
     vkDestroyDescriptorSetLayout(m_device, m_descriptorLayout, nullptr);
-    for (auto &buffer : m_uniformBuffers)
-    {
-        vkDestroyBuffer(m_device, buffer, nullptr);
-    }
-    for (auto &memory : m_uniformMemories)
-    {
 
-        vkFreeMemory(m_device, memory, nullptr);
-    }
     vkDestroyDevice(m_device, nullptr);
 }

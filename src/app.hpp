@@ -51,9 +51,7 @@ class CApp
 
     SAppInfo m_appInfo;
 
-    std::vector<VkBuffer> m_uniformBuffers;
-    std::vector<VkDeviceMemory> m_uniformMemories;
-    VkDescriptorPool m_uniformDescPool = VK_NULL_HANDLE;
+    VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
     VkDescriptorSetLayout m_descriptorLayout = VK_NULL_HANDLE;
     std::vector<VkDescriptorSet> m_descriptorSets;
 
@@ -64,14 +62,6 @@ class CApp
     std::vector<CModel> m_gameObjects{};
 
     CModel m_vikingRoom;
-    SMVP m_mvp{};
-
-    struct SUBO
-    {
-        SMVP mvp{};
-        glm::vec3 timeColor{};
-    };
-    SUBO m_subo;
 
     // Instance creation
     // Physical Device creation
@@ -107,8 +97,6 @@ class CApp
     void CreateDescriptorPool();
     void CreateDescriptorSetLayout(VkDescriptorSetLayout &layout);
     void CreateUniformDescriptors();
-    void CreateUniformBuffers();
-    void UpdateUniformBuffers(uint32_t frameIndex);
     // Graphics Pipeline creation
     VkShaderModule CreateShaderModule(const std::string &shaderFile, const EShaderType shaderType);
     VkPipelineShaderStageCreateInfo CreateShaderPipelineStage(const VkShaderModule &module,
