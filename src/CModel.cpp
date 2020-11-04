@@ -1,12 +1,14 @@
 #include "CModel.hpp"
+#include "CImageLoader.hpp"
 #include "CModelLoader.hpp"
 #include <chrono>
 #include <glm/gtc/matrix_transform.hpp>
 
-CModel::CModel(std::string objFile, glm::vec3 pos) : m_pos(pos)
+CModel::CModel(SModelProps modelProps) : m_modelProps(modelProps)
 {
     mp_deviceInstance = &CDevice::GetInstance();
-    m_mesh = CModelLoader::LoadObjModel(objFile);
+    m_mesh = CModelLoader::LoadObjModel(modelProps.objectFile);
+
     InitModel();
 }
 
@@ -15,8 +17,9 @@ void CModel::InitModel()
     CreateVertexBuffer();
     CreateIndexBuffer();
     CreateUniformBuffers();
-    CreateDescriptorSets();
     CreateTextureImage();
+    CreateTextureSampler();
+    CreateDescriptorSets();
 }
 
 void CModel::UpdateUniformBuffers()
@@ -26,10 +29,10 @@ void CModel::UpdateUniformBuffers()
     const auto currentTime = std::chrono::high_resolution_clock::now();
     const auto time = std::chrono::duration<float, std::chrono::seconds ::period>(currentTime - startTime).count();
 
-    m_mvp.model = glm::translate(glm::mat4(1.0f), m_pos);
-    m_mvp.model = glm::scale(m_mvp.model, glm::vec3(1.0f));
+    m_mvp.model = glm::translate(glm::mat4(1.0f), m_modelProps.modelTransform.translate);
+    m_mvp.model = glm::scale(m_mvp.model, m_modelProps.modelTransform.scale);
     m_mvp.model = glm::rotate(m_mvp.model, time * glm::radians(10.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    m_mvp.view = glm::lookAt(glm::vec3(10.0f, 0.0f, 0.01f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    m_mvp.view = glm::lookAt(glm::vec3(10.0f, 0.01f, 10.0f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     m_mvp.projection = glm::perspective(
         glm::radians(45.0f),
         mp_deviceInstance->GetExtent().width / static_cast<float>(mp_deviceInstance->GetExtent().height), 0.1f, 100.0f);
@@ -151,27 +154,56 @@ void CModel::CreateDescriptorSets()
         mvpInfo.range = GetUniformSize();
         mvpInfo.offset = 0;
 
-        VkWriteDescriptorSet writeDescriptorSet{};
-        writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        writeDescriptorSet.descriptorCount = 1;
-        writeDescriptorSet.dstSet = m_vecDescriptorSets[i];
-        writeDescriptorSet.dstBinding = 0;
-        writeDescriptorSet.dstArrayElement = 0;
-        writeDescriptorSet.pBufferInfo = &mvpInfo;
+        VkDescriptorImageInfo texInfo{};
+        texInfo.imageView = m_textureImageHandles.imageView;
+        texInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        texInfo.sampler = m_textureSampler;
 
-        vkUpdateDescriptorSets(mp_deviceInstance->GetDevice(), 1, &writeDescriptorSet, 0, nullptr);
+        std::array<VkWriteDescriptorSet, 2> writeDescriptorSets{};
+        writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writeDescriptorSets[0].descriptorCount = 1;
+        writeDescriptorSets[0].dstSet = m_vecDescriptorSets[i];
+        writeDescriptorSets[0].dstBinding = 0;
+        writeDescriptorSets[0].dstArrayElement = 0;
+        writeDescriptorSets[0].pBufferInfo = &mvpInfo;
+
+        writeDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writeDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writeDescriptorSets[1].descriptorCount = 1;
+        writeDescriptorSets[1].dstSet = m_vecDescriptorSets[i];
+        writeDescriptorSets[1].dstBinding = 1;
+        writeDescriptorSets[1].dstArrayElement = 0;
+        writeDescriptorSets[1].pImageInfo = &texInfo;
+
+        vkUpdateDescriptorSets(mp_deviceInstance->GetDevice(), writeDescriptorSets.size(), writeDescriptorSets.data(),
+                               0, nullptr);
     }
 }
 
 void CModel::CreateTextureImage()
 {
+    int width, height, channels;
+    const auto imageData = CImageLoader::Load2DImage(m_modelProps.textureFile, width, height, channels);
+    const auto imageSize = width * height * 4;
+    // Stage image to buffer
+    SBufferHandles stagingHandles{};
+    VkBufferCreateInfo stagingInfo{};
+    stagingInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    stagingInfo.size = imageSize;
+    stagingInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    stagingInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    mp_deviceInstance->GetBufferImageManager().CreateBuffer(
+        stagingInfo, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, stagingHandles);
+
+    mp_deviceInstance->GetBufferImageManager().MapMemory(stagingHandles, 0, imageSize, imageData);
+
     VkImageCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     createInfo.imageType = VK_IMAGE_TYPE_2D;
     createInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-    createInfo.extent.width = mp_deviceInstance->GetExtent().width;
-    createInfo.extent.height = mp_deviceInstance->GetExtent().height;
+    createInfo.extent.width = width;
+    createInfo.extent.height = height;
     createInfo.extent.depth = 1;
     createInfo.mipLevels = 1;
     createInfo.arrayLayers = 1;
@@ -185,20 +217,59 @@ void CModel::CreateTextureImage()
 
     mp_deviceInstance->GetBufferImageManager().CreateImage(createInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                                            m_textureImageHandles);
+
+    // Copy the buffer to image
+    VkImageSubresourceLayers layers{};
+    layers.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    layers.mipLevel = 0;
+    layers.baseArrayLayer = 0;
+    layers.layerCount = 1;
+
+    VkBufferImageCopy copyRegions{};
+    copyRegions.imageExtent.width = width;
+    copyRegions.imageExtent.height = height;
+    copyRegions.imageExtent.depth = 1;
+    copyRegions.imageSubresource = layers;
+    mp_deviceInstance->GetBufferImageManager().CopyBufferToImage(stagingHandles.buffer, copyRegions,
+                                                                 m_textureImageHandles.image);
+
+    CImageLoader::FreeImage(imageData);
+    mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(stagingHandles);
+}
+
+void CModel::CreateTextureSampler()
+{
+    VkSamplerCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    createInfo.minFilter = VK_FILTER_LINEAR;
+    createInfo.magFilter = VK_FILTER_LINEAR;
+    createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    createInfo.minLod = 0.0f;
+    createInfo.maxLod = 0.0f;
+    createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    createInfo.mipLodBias = 0.0f;
+    createInfo.anisotropyEnable = VK_TRUE;
+    createInfo.maxAnisotropy = 16.0f;
+    createInfo.compareEnable = VK_FALSE;
+    createInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    createInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    createInfo.unnormalizedCoordinates = VK_FALSE;
+
+    if (const auto res = vkCreateSampler(mp_deviceInstance->GetDevice(), &createInfo, nullptr, &m_textureSampler);
+        res != VK_SUCCESS)
+        throw std::runtime_error("Failed to create sampler.");
 }
 
 void CModel::ModelCleanup()
 {
-    vkDestroyBuffer(mp_deviceInstance->GetDevice(), m_vertexBufferHandles.buffer, nullptr);
-    vkFreeMemory(mp_deviceInstance->GetDevice(), m_vertexBufferHandles.memory, nullptr);
-    vkDestroyBuffer(mp_deviceInstance->GetDevice(), m_indexBufferHandles.buffer, nullptr);
-    vkFreeMemory(mp_deviceInstance->GetDevice(), m_indexBufferHandles.memory, nullptr);
+    mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(m_vertexBufferHandles);
+    mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(m_indexBufferHandles);
     for (auto &handle : m_vecUniformBufferHandles)
     {
-        vkDestroyBuffer(mp_deviceInstance->GetDevice(), handle.buffer, nullptr);
-        vkFreeMemory(mp_deviceInstance->GetDevice(), handle.memory, nullptr);
+        mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(handle);
     }
-    vkDestroyImage(mp_deviceInstance->GetDevice(), m_textureImageHandles.image, nullptr);
-    vkDestroyImageView(mp_deviceInstance->GetDevice(), m_textureImageHandles.imageView, nullptr);
-    vkFreeMemory(mp_deviceInstance->GetDevice(), m_textureImageHandles.memory, nullptr);
+    vkDestroySampler(mp_deviceInstance->GetDevice(), m_textureSampler, nullptr);
+    mp_deviceInstance->GetBufferImageManager().DestroyImagesHandles(m_textureImageHandles);
 }

@@ -29,10 +29,13 @@ class CBufferImageManager
     void CreateImageView(SImageHandles &imageHandles) const;
 
     void CopyBuffer(const VkBuffer src, const VkBufferCopy copyRegions, VkBuffer &dst) const;
+    void CopyBufferToImage(const VkBuffer src, const VkBufferImageCopy copyRegions, VkImage &dst) const;
+
     void MapMemory(const SBufferHandles &bufferHandles, const VkDeviceSize offset, const VkDeviceSize size,
                    const void *pData) const;
 
     void DestroyBufferHandles(SBufferHandles &bufferHandles) const;
+    void DestroyImagesHandles(SImageHandles &bufferHandles) const;
 
   private:
     uint32_t FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags flags) const;

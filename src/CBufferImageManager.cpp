@@ -120,6 +120,68 @@ void CBufferImageManager::CopyBuffer(const VkBuffer src, const VkBufferCopy copy
                          &commandBuffer);
 }
 
+void CBufferImageManager::CopyBufferToImage(const VkBuffer src, const VkBufferImageCopy copyRegions, VkImage &dst) const
+{
+    VkCommandBuffer cmdBuffer;
+    VkCommandBufferAllocateInfo allocateInfo{};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocateInfo.commandPool = CDevice::GetInstance().GetCommandPool();
+    allocateInfo.commandBufferCount = 1;
+    allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    if (const auto res = vkAllocateCommandBuffers(CDevice::GetInstance().GetDevice(), &allocateInfo, &cmdBuffer);
+        res != VK_SUCCESS)
+        throw std::runtime_error("Failed to allocate cmd buffer to copy buffer to image.");
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(cmdBuffer, &beginInfo);
+
+    VkImageMemoryBarrier imageMemoryBarrier{};
+    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    imageMemoryBarrier.srcAccessMask = 0;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.image = dst;
+    imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+    imageMemoryBarrier.subresourceRange.levelCount = 1;
+    imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+    imageMemoryBarrier.subresourceRange.layerCount = 1;
+
+    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
+                         nullptr, 1, &imageMemoryBarrier);
+
+    vkCmdCopyBufferToImage(cmdBuffer, src, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegions);
+
+    imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    vkCmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
+                         nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+
+    vkEndCommandBuffer(cmdBuffer);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmdBuffer;
+
+    if (const auto res = vkQueueSubmit(CDevice::GetInstance().GetGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+        res != VK_SUCCESS)
+        throw std::runtime_error("Failed to submit queue.");
+
+    vkQueueWaitIdle(CDevice::GetInstance().GetGraphicsQueue());
+
+    vkFreeCommandBuffers(CDevice::GetInstance().GetDevice(), CDevice::GetInstance().GetCommandPool(), 1, &cmdBuffer);
+}
+
 void CBufferImageManager::MapMemory(const SBufferHandles &bufferHandles, const VkDeviceSize offset,
                                     const VkDeviceSize size, const void *pData) const
 {
@@ -132,6 +194,13 @@ void CBufferImageManager::MapMemory(const SBufferHandles &bufferHandles, const V
 void CBufferImageManager::DestroyBufferHandles(SBufferHandles &bufferHandles) const
 {
     vkDestroyBuffer(CDevice::GetInstance().GetDevice(), bufferHandles.buffer, nullptr);
+    vkFreeMemory(CDevice::GetInstance().GetDevice(), bufferHandles.memory, nullptr);
+}
+
+void CBufferImageManager::DestroyImagesHandles(SImageHandles &bufferHandles) const
+{
+    vkDestroyImage(CDevice::GetInstance().GetDevice(), bufferHandles.image, nullptr);
+    vkDestroyImageView(CDevice::GetInstance().GetDevice(), bufferHandles.imageView, nullptr);
     vkFreeMemory(CDevice::GetInstance().GetDevice(), bufferHandles.memory, nullptr);
 }
 

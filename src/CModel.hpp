@@ -7,11 +7,26 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
+struct SModelTransform
+{
+    glm::vec3 translate{1.0f};
+    glm::vec3 rotate{1.0f};
+    glm::vec3 scale{1.0f};
+};
+
+struct SModelProps
+{
+    std::string modelName;
+    std::string objectFile;
+    std::string textureFile;
+    SModelTransform modelTransform{};
+};
+
 class CModel
 {
   public:
     CModel() = default;
-    explicit CModel(std::string objFile, glm::vec3 pos = glm::vec3(0.0f));
+    explicit CModel(SModelProps modelProps);
 
     void InitModel();
 
@@ -59,16 +74,18 @@ class CModel
     void CreateUniformBuffers();
     void CreateDescriptorSets();
     void CreateTextureImage();
+    void CreateTextureSampler();
 
     CDevice *mp_deviceInstance;
 
     SBufferHandles m_vertexBufferHandles{};
     SBufferHandles m_indexBufferHandles{};
-    SImageHandles m_textureImageHandles{};
     std::vector<SBufferHandles> m_vecUniformBufferHandles{};
     std::vector<VkDescriptorSet> m_vecDescriptorSets;
+    SImageHandles m_textureImageHandles{};
+    VkSampler m_textureSampler;
 
     SMesh m_mesh;
     SMVP m_mvp{};
-    glm::vec3 m_pos;
+    SModelProps m_modelProps{};
 };

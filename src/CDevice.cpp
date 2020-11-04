@@ -609,13 +609,13 @@ void CDevice::CreateCommandBuffers()
 
 void CDevice::CreateDescriptorPool()
 {
-    std::array<VkDescriptorPoolSize, 1> pools{};
+    std::array<VkDescriptorPoolSize, 2> pools{};
 
     pools[0].descriptorCount = static_cast<uint32_t>(m_swapchainImages.size());
     pools[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
-    // pools[1].descriptorCount = static_cast<uint32_t>(m_swapchainImages.size());
-    // pools[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    pools[1].descriptorCount = static_cast<uint32_t>(m_swapchainImages.size());
+    pools[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 
     VkDescriptorPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -629,16 +629,16 @@ void CDevice::CreateDescriptorPool()
 
 void CDevice::CreateDescriptorSetLayout()
 {
-    std::array<VkDescriptorSetLayoutBinding, 1> bindings{};
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
     bindings[0].descriptorCount = 1;
     bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     bindings[0].binding = 0;
 
-    // bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    // bindings[1].descriptorCount = 1;
-    // bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    // bindings[1].binding = 1;
+    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[1].descriptorCount = 1;
+    bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    bindings[1].binding = 1;
 
     VkDescriptorSetLayoutCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
