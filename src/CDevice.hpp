@@ -83,16 +83,13 @@ class CDevice
     }
 
     void InitDevice(CWindow *window, CInstance *vkInstance, CBufferImageManager *bufferImageManager, SAppInfo appInfo);
-    void DrawBegin();
-    void DrawEnd();
+    bool DrawBegin();
+    bool DrawEnd();
     void Cleanup();
 
     uint32_t FindMemoryType(uint32_t memoryTypeBits, VkMemoryPropertyFlags flags);
 
   private:
-    CDevice()
-    {
-    }
     void CreateDevice(SAppInfo appInfo);
     // Queue creation
     void CreateQueues();

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.17)
-project(vulkan00)
+project(VkEngine)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -28,13 +28,17 @@ list(APPEND LIBS glfw)
 
 include_directories(ThirdParty/glm)
 include_directories(ThirdParty/loaders)
+include_directories(ThirdParty/imgui)
 
-# Copy assets to build
+add_subdirectory(vkTools)
+list(APPEND LIBS VkTools)
 
 include_directories(src)
 file(GLOB SRC "src/*.cpp")
-add_executable(vulkan00 main.cpp ${SRC})
-target_link_libraries(vulkan00 ${LIBS})
+add_executable(${PROJECT_NAME} main.cpp ${SRC})
+target_link_libraries(${PROJECT_NAME} ${LIBS})
+
+# Copy assets to build
 #
 #set(ASSETS ${CMAKE_SOURCE_DIR}/assets)
 #set(DESTINATION_ASSETS ${CMAKE_CURRENT_BINARY_DIR}/assets)

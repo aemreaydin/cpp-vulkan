@@ -278,7 +278,8 @@ void CApp::CreateSampler()
 
 void CApp::Draw()
 {
-    m_deviceInstance->DrawBegin();
+    if (!m_deviceInstance->DrawBegin())
+        return;
 
     for (const auto &gameObject : m_vecGameObjects)
     {

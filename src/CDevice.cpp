@@ -53,7 +53,7 @@ void CDevice::InitDevice(CWindow *window, CInstance *vkInstance, CBufferImageMan
     //    CreateUniformDescriptors();
 }
 
-void CDevice::DrawBegin()
+bool CDevice::DrawBegin()
 {
     uint32_t imageIndex;
     const auto acquireRes = vkAcquireNextImageKHR(m_device, m_swapchain, UINT64_MAX, m_semaphoreRenderComplete,
@@ -61,7 +61,7 @@ void CDevice::DrawBegin()
     if (acquireRes == VK_ERROR_OUT_OF_DATE_KHR)
     {
         RecreateSwapchain();
-        return;
+        return false;
     }
     else if (acquireRes != VK_SUCCESS && acquireRes != VK_SUBOPTIMAL_KHR)
     {
@@ -98,22 +98,9 @@ void CDevice::DrawBegin()
     // Bind the graphics pipeline
     vkCmdBindPipeline(m_currentCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
-    //     // Bind the vertex buffer
-    //     VkBuffer vertexBuffers[] = {m_vikingRoom.GetVertexBuffer()};
-    //     VkDeviceSize offsets[] = {0};
-    //     vkCmdBindVertexBuffers(m_commandBuffers[index], 0, 1, vertexBuffers, offsets);
-
-    //     // Bind the index buffer
-    //     vkCmdBindIndexBuffer(m_commandBuffers[index], m_vikingRoom.GetIndexBuffer(), 0, VK_INDEX_TYPE_UINT16);
-
-    //     // Bind the uniform buffer
-    //     vkCmdBindDescriptorSets(m_commandBuffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
-    //                             &m_descriptorSets[index], 0, nullptr);
-
-    //     // Draw
-    //     vkCmdDrawIndexed(m_commandBuffers[index], m_vikingRoom.GetIndicesSize(), 1, 0, 0, 0);
+    return true;
 }
-void CDevice::DrawEnd()
+bool CDevice::DrawEnd()
 {
     vkCmdEndRenderPass(m_currentCommandBuffer);
     if (vkEndCommandBuffer(m_currentCommandBuffer) != VK_SUCCESS)
@@ -149,12 +136,14 @@ void CDevice::DrawEnd()
     if (presentRes == VK_ERROR_OUT_OF_DATE_KHR || presentRes == VK_SUBOPTIMAL_KHR || ShouldRecreateSwapchain())
     {
         RecreateSwapchain();
-        return;
+        return false;
     }
     else if (presentRes != VK_SUCCESS)
         throw std::runtime_error("Failed to present image");
 
     vkQueueWaitIdle(m_presentQueue);
+
+    return true;
 }
 
 void CDevice::CreateDevice(SAppInfo appInfo)
@@ -299,11 +288,13 @@ void CDevice::RecreateSwapchain()
     CreateSwapchainImages();
     CreateImageViews();
     CreateDepthImage();
-    CreateDescriptorPool();
-    CreateDescriptorSetLayout();
+    CreateCommandBuffers();
+    //    CreateDescriptorPool();
+    //    CreateDescriptorSetLayout();
+    CreatePipelineLayout();
+    CreateRenderPass();
     CreateGraphicsPipeline();
     CreateFramebuffers();
-    CreateCommandBuffers();
 }
 
 void CDevice::CleanupSwapchain()
@@ -312,21 +303,18 @@ void CDevice::CleanupSwapchain()
     {
         vkDestroyFramebuffer(m_device, framebuffer, nullptr);
     }
-    vkFreeCommandBuffers(m_device, m_commandPool, m_commandBuffers.size(), m_commandBuffers.data());
-
     vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
     vkDestroyRenderPass(m_device, m_renderPass, nullptr);
-    // vkDestroyImageView(m_device, m_texImageView, nullptr);
+    vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+    vkFreeCommandBuffers(m_device, m_commandPool, m_commandBuffers.size(), m_commandBuffers.data());
+    vkDestroyImage(m_device, m_depthImage, nullptr);
+    vkFreeMemory(m_device, m_depthImageMemory, nullptr);
+    vkDestroyImageView(m_device, m_depthImageView, nullptr);
     for (auto &imageView : m_imageViews)
     {
         vkDestroyImageView(m_device, imageView, nullptr);
     }
-    vkDestroyImageView(m_device, m_depthImageView, nullptr);
-    vkFreeMemory(m_device, m_depthImageMemory, nullptr);
-    vkDestroyImage(m_device, m_depthImage, nullptr);
     vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
-    vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 }
 
 bool CDevice::ShouldRecreateSwapchain()
@@ -711,7 +699,6 @@ void CDevice::CreateFences()
 
 void CDevice::Cleanup()
 {
-    CleanupSwapchain();
     for (auto &fence : m_fences)
     {
         vkDestroyFence(m_device, fence, nullptr);
@@ -719,15 +706,10 @@ void CDevice::Cleanup()
     vkDestroySemaphore(m_device, m_semaphoreRenderComplete, nullptr);
     vkDestroySemaphore(m_device, m_semaphorePresentComplete, nullptr);
 
-    // m_vikingRoom.DestroyModel(m_device);
-
-    // vkDestroyImage(m_device, m_texImage, nullptr);
-    // vkFreeMemory(m_device, m_texMemory, nullptr);
-
-    // vkDestroySampler(m_device, m_texSampler, nullptr);
-    vkDestroyCommandPool(m_device, m_commandPool, nullptr);
-
     vkDestroyDescriptorSetLayout(m_device, m_descriptorLayout, nullptr);
+    vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
 
+    CleanupSwapchain();
+    vkDestroyCommandPool(m_device, m_commandPool, nullptr);
     vkDestroyDevice(m_device, nullptr);
 }
