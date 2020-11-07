@@ -1,5 +1,7 @@
 #include "CInstance.hpp"
 
+#include "vkStructs.hpp"
+
 CInstance::CInstance(GLFWwindow *window, SAppInfo appInfo) : m_appInfo(appInfo)
 {
     CreateInstance();
@@ -14,30 +16,13 @@ void CInstance::CreateInstance()
     if (!CVulkanHelpers::CheckForVulkanLayers(m_appInfo.layers))
         throw std::runtime_error("Validation layers not available.");
 
-    auto instanceCreateInfo = VkInstanceCreateInfo{};
-    instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-
-    auto appInfo = VkApplicationInfo{};
-    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = "Vulkan 00";
-    appInfo.applicationVersion = VK_API_VERSION_1_0;
-    appInfo.pEngineName = "Vulkan 00";
-    appInfo.engineVersion = 1;
-    instanceCreateInfo.pApplicationInfo = &appInfo;
-
+    const auto applicationInfo = vkTools::ApplicationInfo();
     const auto extensions = CVulkanHelpers::GetVulkanInstanceExtensions();
-    instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-    instanceCreateInfo.ppEnabledExtensionNames = extensions.data();
-
-    // TODO add debug check
-    instanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(m_appInfo.layers.size());
-    instanceCreateInfo.ppEnabledLayerNames = m_appInfo.layers.data();
-
     VkDebugUtilsMessengerCreateInfoEXT debugInfo;
     CValidationLayer::PopulateDebugMessengerCreateInfo(debugInfo);
-    instanceCreateInfo.pNext = static_cast<VkDebugUtilsMessengerCreateInfoEXT *>(&debugInfo);
+    const auto instanceInfo = vkTools::InstanceCreateInfo(applicationInfo, extensions, m_appInfo.layers, debugInfo);
 
-    if (const auto res = vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance); res != VK_SUCCESS)
+    if (const auto res = vkCreateInstance(&instanceInfo, nullptr, &m_instance); res != VK_SUCCESS)
         throw std::runtime_error("Failed to create instance.");
 }
 

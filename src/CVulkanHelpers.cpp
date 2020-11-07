@@ -1,4 +1,5 @@
 #include "CVulkanHelpers.hpp"
+// TODO MOVE TO vkTools
 std::vector<const char *> CVulkanHelpers::GetVulkanInstanceExtensions()
 {
     if (glfwVulkanSupported() == GLFW_FALSE)
