@@ -22,8 +22,7 @@ void CInstance::CreateInstance()
     CValidationLayer::PopulateDebugMessengerCreateInfo(debugInfo);
     const auto instanceInfo = vkTools::InstanceCreateInfo(applicationInfo, extensions, m_appInfo.layers, debugInfo);
 
-    if (const auto res = vkCreateInstance(&instanceInfo, nullptr, &m_instance); res != VK_SUCCESS)
-        throw std::runtime_error("Failed to create instance.");
+    VK_CHECK_RESULT(vkCreateInstance(&instanceInfo, nullptr, &m_instance));
 }
 
 void CInstance::CreateSurface(GLFWwindow *window)
@@ -31,9 +30,7 @@ void CInstance::CreateSurface(GLFWwindow *window)
     if (!window)
         throw std::runtime_error("Window doesn't exist, create it first.");
 
-    const auto res = glfwCreateWindowSurface(m_instance, window, nullptr, &m_surface);
-    if (res != VK_SUCCESS)
-        throw std::runtime_error("Failed to create surface.");
+    VK_CHECK_RESULT(glfwCreateWindowSurface(m_instance, window, nullptr, &m_surface));
 }
 
 void CInstance::CreatePhysicalDevice()

@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
-#include <vulkan/vulkan.h>
+
+#include "vkUtils.hpp"
 
 namespace vkTools
 {
