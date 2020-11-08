@@ -1,6 +1,7 @@
 #pragma once
 #include "CBufferImageManager.hpp"
 #include "CDevice.hpp"
+#include "CObject.hpp"
 #include "vkPrimitives.hpp"
 
 #include <glm/glm.hpp>
@@ -22,16 +23,16 @@ struct SModelProps
     SModelTransform modelTransform{};
 };
 
-class CModel
+class CGameObject : public CObject
 {
   public:
-    CModel() = default;
-    explicit CModel(SModelProps modelProps);
+    CGameObject() = default;
+    explicit CGameObject(SModelProps modelProps);
 
-    void InitModel();
-
-    void UpdateUniformBuffers();
-    void Draw() const;
+    void InitObject() override;
+    void UpdateUniformBuffers() override;
+    void Draw() const override;
+    void ObjectCleanup() override;
 
     uint32_t GetVerticesSize() const
     {
@@ -45,29 +46,6 @@ class CModel
     {
         return static_cast<uint32_t>(sizeof(m_mvp));
     }
-
-    const VkBuffer GetVertexBuffer() const
-    {
-        return m_vertexBufferHandles.buffer;
-    }
-
-    const VkBuffer GetIndexBuffer() const
-    {
-        return m_indexBufferHandles.buffer;
-    }
-
-    const VkBuffer GetUniformBuffer(uint32_t frameIndex) const
-    {
-        return m_vecUniformBufferHandles[frameIndex].buffer;
-    }
-
-    const VkDescriptorSet GetDescriptorSet(uint32_t frameIndex) const
-    {
-        return m_vecDescriptorSets[frameIndex];
-    }
-
-    void ModelCleanup();
-
   private:
     void CreateVertexBuffer();
     void CreateIndexBuffer();

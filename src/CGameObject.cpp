@@ -1,18 +1,18 @@
-#include "CModel.hpp"
+#include "CGameObject.hpp"
 #include "CImageLoader.hpp"
 #include "CModelLoader.hpp"
 #include <chrono>
 #include <glm/gtc/matrix_transform.hpp>
 
-CModel::CModel(SModelProps modelProps) : m_modelProps(modelProps)
+CGameObject::CGameObject(SModelProps modelProps) : m_modelProps(modelProps)
 {
     mp_deviceInstance = &CDevice::GetInstance();
     m_mesh = CModelLoader::LoadObjModel(modelProps.objectFile);
 
-    InitModel();
+    InitObject();
 }
 
-void CModel::InitModel()
+void CGameObject::InitObject()
 {
     CreateVertexBuffer();
     CreateIndexBuffer();
@@ -22,7 +22,7 @@ void CModel::InitModel()
     CreateDescriptorSets();
 }
 
-void CModel::UpdateUniformBuffers()
+void CGameObject::UpdateUniformBuffers()
 {
     static auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -48,7 +48,7 @@ void CModel::UpdateUniformBuffers()
                   m_vecUniformBufferHandles[mp_deviceInstance->GetCurrentImageIndex()].memory);
 }
 
-void CModel::Draw() const
+void CGameObject::Draw() const
 {
     VkCommandBuffer cmdBuffer = mp_deviceInstance->GetCurrentCommandBuffer();
 
@@ -63,7 +63,7 @@ void CModel::Draw() const
     vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(m_mesh.indices.size()), 1, 0, 0, 0);
 }
 
-void CModel::CreateVertexBuffer()
+void CGameObject::CreateVertexBuffer()
 {
     SBufferHandles stagingHandles{};
     VkBufferCreateInfo createInfo{};
@@ -89,7 +89,7 @@ void CModel::CreateVertexBuffer()
     mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(stagingHandles);
 }
 
-void CModel::CreateIndexBuffer()
+void CGameObject::CreateIndexBuffer()
 {
     SBufferHandles stagingHandles{};
     VkBufferCreateInfo createInfo{};
@@ -115,7 +115,7 @@ void CModel::CreateIndexBuffer()
     mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(stagingHandles);
 }
 
-void CModel::CreateUniformBuffers()
+void CGameObject::CreateUniformBuffers()
 {
     m_vecUniformBufferHandles.resize(mp_deviceInstance->GetSwapchainImageCount());
 
@@ -131,7 +131,7 @@ void CModel::CreateUniformBuffers()
     }
 }
 
-void CModel::CreateDescriptorSets()
+void CGameObject::CreateDescriptorSets()
 {
     m_vecDescriptorSets.resize(mp_deviceInstance->GetSwapchainImageCount());
 
@@ -181,7 +181,7 @@ void CModel::CreateDescriptorSets()
     }
 }
 
-void CModel::CreateTextureImage()
+void CGameObject::CreateTextureImage()
 {
     int width, height, channels;
     const auto imageData = CImageLoader::Load2DImage(m_modelProps.textureFile, width, height, channels);
@@ -237,7 +237,7 @@ void CModel::CreateTextureImage()
     mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(stagingHandles);
 }
 
-void CModel::CreateTextureSampler()
+void CGameObject::CreateTextureSampler()
 {
     VkSamplerCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -262,7 +262,7 @@ void CModel::CreateTextureSampler()
         throw std::runtime_error("Failed to create sampler.");
 }
 
-void CModel::ModelCleanup()
+void CGameObject::ObjectCleanup()
 {
     mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(m_vertexBufferHandles);
     mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(m_indexBufferHandles);

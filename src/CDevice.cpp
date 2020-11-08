@@ -46,7 +46,7 @@ void CDevice::InitDevice(CWindow *window, CInstance *vkInstance, CBufferImageMan
     //    // Create the game objects
     //
     //    m_vikingRoom = CModel("../assets/models/viking_room.obj");
-    //    m_vikingRoom.InitModel(*mp_bufferImageManager, m_images.size());
+    //    m_vikingRoom.InitObject(*mp_bufferImageManager, m_images.size());
     //
     //    CreateTexImage();
     //    CreateTexImageView();

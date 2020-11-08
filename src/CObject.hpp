@@ -2,24 +2,15 @@
 
 #include <glm/glm.hpp>
 #include <iostream>
+#include <vulkan/vulkan.h>
 
 #include "vkPrimitives.hpp"
 
-struct SModelTransform
-{
-    glm::vec3 translate{1.0f};
-    glm::vec3 rotate{1.0f};
-    glm::vec3 scale{1.0f};
-};
-
-struct SModelProps
-{
-    std::string modelName;
-    std::string objectFile;
-    std::string textureFile;
-    SModelTransform modelTransform{};
-};
-
 class CObject
 {
+  public:
+    virtual void InitObject() = 0;
+    virtual void UpdateUniformBuffers() = 0;
+    virtual void Draw() const = 0;
+    virtual void ObjectCleanup() = 0;
 };

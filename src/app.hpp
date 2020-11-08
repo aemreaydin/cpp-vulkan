@@ -10,8 +10,8 @@
 
 #include "CBufferImageManager.hpp"
 #include "CDevice.hpp"
+#include "CGameObject.hpp"
 #include "CInstance.hpp"
-#include "CModel.hpp"
 #include "CShaderUtils.hpp"
 #include "CValidationLayer.hpp"
 #include "CVulkanHelpers.hpp"
@@ -29,7 +29,7 @@ class CApp
     std::unique_ptr<CBufferImageManager> mp_bufferImageManager;
     CDevice *m_deviceInstance;
 
-    std::vector<std::unique_ptr<CModel>> m_vecGameObjects{};
+    std::vector<std::unique_ptr<CGameObject>> m_vecGameObjects{};
 
     void Draw();
   public:

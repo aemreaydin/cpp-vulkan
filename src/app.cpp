@@ -17,13 +17,13 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     vikingProps.textureFile = "../assets/textures/viking_room.png";
     vikingProps.modelTransform.translate = glm::vec3(0.0f, -3.0f, 0.0f);
     vikingProps.modelTransform.scale = glm::vec3(3.0f, 3.0f, 3.0f);
-    m_vecGameObjects.emplace_back(std::make_unique<CModel>(vikingProps));
+    m_vecGameObjects.emplace_back(std::make_unique<CGameObject>(vikingProps));
 
     SModelProps cubeProps{};
     cubeProps.objectFile = "../assets/models/cube.obj";
     cubeProps.textureFile = "../assets/textures/texture.jpg";
     cubeProps.modelTransform.translate = glm::vec3(0.0f, 3.0f, 0.0f);
-    m_vecGameObjects.emplace_back(std::make_unique<CModel>(cubeProps));
+    m_vecGameObjects.emplace_back(std::make_unique<CGameObject>(cubeProps));
 }
 
 
@@ -54,7 +54,7 @@ void CApp::Cleanup()
 {
     for (auto &gameObject : m_vecGameObjects)
     {
-        gameObject->ModelCleanup();
+        gameObject->ObjectCleanup();
     }
     m_deviceInstance->Cleanup();
 }
