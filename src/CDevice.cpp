@@ -301,6 +301,7 @@ void CDevice::RecreateSwapchain()
 
 void CDevice::CleanupSwapchain()
 {
+
     for (auto &framebuffer : m_framebuffers)
     {
         vkDestroyFramebuffer(m_device, framebuffer, nullptr);

@@ -13,6 +13,7 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     m_deviceInstance->InitDevice(mp_window.get(), mp_instance.get(), mp_bufferImageManager.get(), appInfo);
 
     SModelProps vikingProps{};
+    vikingProps.modelName = "Viking Room";
     vikingProps.objectFile = "../assets/models/viking_room.obj";
     vikingProps.textureFile = "../assets/textures/viking_room.png";
     vikingProps.modelTransform.translate = glm::vec3(0.0f, -3.0f, 0.0f);
@@ -20,17 +21,26 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     m_vecGameObjects.emplace_back(std::make_unique<CGameObject>(vikingProps));
 
     SModelProps cubeProps{};
+    cubeProps.modelName = "Cube";
     cubeProps.objectFile = "../assets/models/cube.obj";
     cubeProps.textureFile = "../assets/textures/texture.jpg";
     cubeProps.modelTransform.translate = glm::vec3(0.0f, 3.0f, 0.0f);
     m_vecGameObjects.emplace_back(std::make_unique<CGameObject>(cubeProps));
-}
 
+    m_vecLightObjects.emplace_back(std::make_unique<CLightObject>());
+}
 
 void CApp::Draw()
 {
     if (!m_deviceInstance->DrawBegin())
+    {
+        for (auto &lightObject : m_vecLightObjects)
+        {
+            lightObject->CleanupGraphicsPipeline();
+            lightObject->RecreateGraphicsPipeline();
+        }
         return;
+    }
 
     for (const auto &gameObject : m_vecGameObjects)
     {
@@ -38,7 +48,21 @@ void CApp::Draw()
         gameObject->Draw();
     }
 
-    m_deviceInstance->DrawEnd();
+    for (auto &lightObject : m_vecLightObjects)
+    {
+        lightObject->UpdateUniformBuffers();
+        lightObject->Draw();
+    }
+
+    if (!m_deviceInstance->DrawEnd())
+    {
+        for (auto &lightObject : m_vecLightObjects)
+        {
+            lightObject->CleanupGraphicsPipeline();
+            lightObject->RecreateGraphicsPipeline();
+        }
+        return;
+    }
 }
 
 void CApp::RenderLoop()
@@ -55,6 +79,10 @@ void CApp::Cleanup()
     for (auto &gameObject : m_vecGameObjects)
     {
         gameObject->ObjectCleanup();
+    }
+    for (auto &lightObject : m_vecLightObjects)
+    {
+        lightObject->ObjectCleanup();
     }
     m_deviceInstance->Cleanup();
 }

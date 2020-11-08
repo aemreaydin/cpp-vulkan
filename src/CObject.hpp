@@ -9,7 +9,6 @@
 class CObject
 {
   public:
-    virtual void InitObject() = 0;
     virtual void UpdateUniformBuffers() = 0;
     virtual void Draw() const = 0;
     virtual void ObjectCleanup() = 0;

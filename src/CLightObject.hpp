@@ -1,27 +1,17 @@
 #pragma once
+
 #include "CBufferImageManager.hpp"
-#include "CDevice.hpp"
 #include "CObject.hpp"
 #include "vkPrimitives.hpp"
 
-#include <glm/glm.hpp>
-#include <vector>
-#include <vulkan/vulkan.h>
-
-
-struct SModelProps
-{
-    std::string modelName;
-    std::string objectFile;
-    std::string textureFile;
-    vkTools::vkPrimitives::STransform modelTransform{};
-};
-
-class CGameObject : public CObject
+class CLightObject : public CObject
 {
   public:
-    explicit CGameObject(SModelProps modelProps);
+    explicit CLightObject(vkTools::vkPrimitives::STransform transform = {glm::vec3(1.0f), glm::vec3(0.25f),
+                                                                         glm::vec3(1.0f)});
 
+    void CleanupGraphicsPipeline();
+    void RecreateGraphicsPipeline();
     void UpdateUniformBuffers() override;
     void Draw() const override;
     void ObjectCleanup() override;
@@ -38,13 +28,13 @@ class CGameObject : public CObject
     {
         return static_cast<uint32_t>(sizeof(m_mvp));
     }
+
   private:
     void CreateVertexBuffer();
     void CreateIndexBuffer();
     void CreateUniformBuffers();
     void CreateDescriptorSets();
-    void CreateTextureImage();
-    void CreateTextureSampler();
+    void CreateGraphicsPipeline();
 
     CDevice *mp_deviceInstance;
 
@@ -52,10 +42,11 @@ class CGameObject : public CObject
     SBufferHandles m_indexBufferHandles{};
     std::vector<SBufferHandles> m_vecUniformBufferHandles{};
     std::vector<VkDescriptorSet> m_vecDescriptorSets;
-    SImageHandles m_textureImageHandles{};
-    VkSampler m_textureSampler;
+
+    VkPipelineLayout m_graphicsPipelineLayout;
+    VkPipeline m_graphicsPipeline;
 
     vkTools::vkPrimitives::SMesh m_mesh;
     vkTools::vkPrimitives::SMVP m_mvp{};
-    SModelProps m_modelProps{};
+    vkTools::vkPrimitives::STransform m_transform;
 };

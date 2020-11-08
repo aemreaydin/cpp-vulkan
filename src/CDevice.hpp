@@ -67,6 +67,11 @@ class CDevice
         return m_currentCommandBuffer;
     }
 
+    const VkRenderPass GetRenderPass() const
+    {
+        return m_renderPass;
+    }
+
     uint32_t GetCurrentImageIndex() const
     {
         return m_currentImageIndex;

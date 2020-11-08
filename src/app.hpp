@@ -17,6 +17,7 @@
 #include "CVulkanHelpers.hpp"
 #include "CWindow.hpp"
 
+#include "CLightObject.hpp"
 #include "SQueueFamilies.hpp"
 
 class CApp
@@ -30,6 +31,7 @@ class CApp
     CDevice *m_deviceInstance;
 
     std::vector<std::unique_ptr<CGameObject>> m_vecGameObjects{};
+    std::vector<std::unique_ptr<CLightObject>> m_vecLightObjects{};
 
     void Draw();
   public:

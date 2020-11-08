@@ -1,31 +1,45 @@
-#include "CGameObject.hpp"
+#include "CLightObject.hpp"
 #include "CImageLoader.hpp"
 #include "CModelLoader.hpp"
+#include "CShaderUtils.hpp"
+#include "vkStructs.hpp"
 #include <chrono>
 #include <glm/gtc/matrix_transform.hpp>
 
-CGameObject::CGameObject(SModelProps modelProps) : m_modelProps(modelProps)
+using namespace vkTools;
+using namespace vkTools;
+
+CLightObject::CLightObject(vkPrimitives::STransform transform) : m_transform(transform)
 {
     mp_deviceInstance = &CDevice::GetInstance();
-    m_mesh = CModelLoader::LoadObjModel(modelProps.objectFile);
+    m_mesh = CModelLoader::LoadObjModel("../assets/models/cube.obj");
 
     CreateVertexBuffer();
     CreateIndexBuffer();
     CreateUniformBuffers();
-    CreateTextureImage();
-    CreateTextureSampler();
     CreateDescriptorSets();
+    CreateGraphicsPipeline();
 }
 
-void CGameObject::UpdateUniformBuffers()
+void CLightObject::CleanupGraphicsPipeline()
+{
+    vkDestroyPipelineLayout(mp_deviceInstance->GetDevice(), m_graphicsPipelineLayout, nullptr);
+    vkDestroyPipeline(mp_deviceInstance->GetDevice(), m_graphicsPipeline, nullptr);
+}
+void CLightObject::RecreateGraphicsPipeline()
+{
+    CreateGraphicsPipeline();
+}
+
+void CLightObject::UpdateUniformBuffers()
 {
     static auto startTime = std::chrono::high_resolution_clock::now();
 
     const auto currentTime = std::chrono::high_resolution_clock::now();
     const auto time = std::chrono::duration<float, std::chrono::seconds ::period>(currentTime - startTime).count();
 
-    m_mvp.model = glm::translate(glm::mat4(1.0f), m_modelProps.modelTransform.translate);
-    m_mvp.model = glm::scale(m_mvp.model, m_modelProps.modelTransform.scale);
+    m_mvp.model = glm::translate(glm::mat4(1.0f), m_transform.translate);
+    m_mvp.model = glm::scale(m_mvp.model, m_transform.scale);
     m_mvp.model = glm::rotate(m_mvp.model, time * glm::radians(10.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     m_mvp.view = glm::lookAt(glm::vec3(10.0f, 0.01f, 10.0f), glm::vec3(0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     m_mvp.projection = glm::perspective(
@@ -43,11 +57,13 @@ void CGameObject::UpdateUniformBuffers()
                   m_vecUniformBufferHandles[mp_deviceInstance->GetCurrentImageIndex()].memory);
 }
 
-void CGameObject::Draw() const
+void CLightObject::Draw() const
 {
     VkCommandBuffer cmdBuffer = mp_deviceInstance->GetCurrentCommandBuffer();
 
     VkDeviceSize offsets = {0};
+
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
     vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &m_vertexBufferHandles.buffer, &offsets);
 
     vkCmdBindIndexBuffer(cmdBuffer, m_indexBufferHandles.buffer, 0, VK_INDEX_TYPE_UINT16);
@@ -58,7 +74,7 @@ void CGameObject::Draw() const
     vkCmdDrawIndexed(cmdBuffer, static_cast<uint32_t>(m_mesh.indices.size()), 1, 0, 0, 0);
 }
 
-void CGameObject::CreateVertexBuffer()
+void CLightObject::CreateVertexBuffer()
 {
     SBufferHandles stagingHandles{};
     VkBufferCreateInfo createInfo{};
@@ -84,7 +100,7 @@ void CGameObject::CreateVertexBuffer()
     mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(stagingHandles);
 }
 
-void CGameObject::CreateIndexBuffer()
+void CLightObject::CreateIndexBuffer()
 {
     SBufferHandles stagingHandles{};
     VkBufferCreateInfo createInfo{};
@@ -110,7 +126,7 @@ void CGameObject::CreateIndexBuffer()
     mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(stagingHandles);
 }
 
-void CGameObject::CreateUniformBuffers()
+void CLightObject::CreateUniformBuffers()
 {
     m_vecUniformBufferHandles.resize(mp_deviceInstance->GetSwapchainImageCount());
 
@@ -126,7 +142,7 @@ void CGameObject::CreateUniformBuffers()
     }
 }
 
-void CGameObject::CreateDescriptorSets()
+void CLightObject::CreateDescriptorSets()
 {
     m_vecDescriptorSets.resize(mp_deviceInstance->GetSwapchainImageCount());
 
@@ -149,12 +165,7 @@ void CGameObject::CreateDescriptorSets()
         mvpInfo.range = GetUniformSize();
         mvpInfo.offset = 0;
 
-        VkDescriptorImageInfo texInfo{};
-        texInfo.imageView = m_textureImageHandles.imageView;
-        texInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        texInfo.sampler = m_textureSampler;
-
-        std::array<VkWriteDescriptorSet, 2> writeDescriptorSets{};
+        std::array<VkWriteDescriptorSet, 1> writeDescriptorSets{};
         writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         writeDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         writeDescriptorSets[0].descriptorCount = 1;
@@ -163,101 +174,61 @@ void CGameObject::CreateDescriptorSets()
         writeDescriptorSets[0].dstArrayElement = 0;
         writeDescriptorSets[0].pBufferInfo = &mvpInfo;
 
-        writeDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writeDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        writeDescriptorSets[1].descriptorCount = 1;
-        writeDescriptorSets[1].dstSet = m_vecDescriptorSets[i];
-        writeDescriptorSets[1].dstBinding = 1;
-        writeDescriptorSets[1].dstArrayElement = 0;
-        writeDescriptorSets[1].pImageInfo = &texInfo;
-
         vkUpdateDescriptorSets(mp_deviceInstance->GetDevice(), writeDescriptorSets.size(), writeDescriptorSets.data(),
                                0, nullptr);
     }
 }
 
-void CGameObject::CreateTextureImage()
+void CLightObject::CreateGraphicsPipeline()
 {
-    int width, height, channels;
-    const auto imageData = CImageLoader::Load2DImage(m_modelProps.textureFile, width, height, channels);
-    const auto imageSize = width * height * 4;
-    // Stage image to buffer
-    SBufferHandles stagingHandles{};
-    VkBufferCreateInfo stagingInfo{};
-    stagingInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    stagingInfo.size = imageSize;
-    stagingInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    stagingInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    mp_deviceInstance->GetBufferImageManager().CreateBuffer(
-        stagingInfo, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, stagingHandles);
+    const auto vertModule = CShaderUtils::CreateShaderModule(mp_deviceInstance->GetDevice(),
+                                                             "../assets/shaders/light.vert", EShaderType::Vert);
+    const auto vertStageInfo = CShaderUtils::ShaderPipelineStageCreateInfo(vertModule, EShaderType::Vert);
 
-    mp_deviceInstance->GetBufferImageManager().MapMemory(stagingHandles, 0, imageSize, imageData);
+    const auto fragModule = CShaderUtils::CreateShaderModule(mp_deviceInstance->GetDevice(),
+                                                             "../assets/shaders/light.frag", EShaderType::Frag);
+    const auto fragStageInfo = CShaderUtils::ShaderPipelineStageCreateInfo(fragModule, EShaderType::Frag);
 
-    VkImageCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    createInfo.imageType = VK_IMAGE_TYPE_2D;
-    createInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-    createInfo.extent.width = width;
-    createInfo.extent.height = height;
-    createInfo.extent.depth = 1;
-    createInfo.mipLevels = 1;
-    createInfo.arrayLayers = 1;
-    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-    createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    createInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    createInfo.queueFamilyIndexCount = 1;
-    createInfo.pQueueFamilyIndices = mp_deviceInstance->GetVulkanInstance()->QueueFamilies().GraphicsFamily();
-    createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    const std::vector<VkPipelineShaderStageCreateInfo> vecShaderStages{vertStageInfo, fragStageInfo};
 
-    mp_deviceInstance->GetBufferImageManager().CreateImage(createInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                                                           m_textureImageHandles);
+    const auto vertexInputInfo = vkStructs::VertexInputStateCreateInfo(
+        vkPrimitives::SVertex::GetInputBindingDescription(), vkPrimitives::SVertex::GetAttributeBindingDescription());
+    const auto inputAssemblyInfo = vkStructs::InputAssemblyStateCreateInfo();
+    const auto tessellationInfo = vkStructs::TessellationStateCreateInfo();
+    const auto rasterizationInfo = vkStructs::RasterizationStateCreateInfo(VK_POLYGON_MODE_LINE);
 
-    // Copy the buffer to image
-    VkImageSubresourceLayers layers{};
-    layers.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    layers.mipLevel = 0;
-    layers.baseArrayLayer = 0;
-    layers.layerCount = 1;
+    VkPipelineColorBlendAttachmentState attachmentState{};
+    attachmentState.blendEnable = VK_FALSE;
+    attachmentState.colorWriteMask =
+        VK_COLOR_COMPONENT_A_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_R_BIT;
+    const auto colorBlendInfo = vkStructs::ColorBlendStateCreateInfo(attachmentState);
+    const auto multisampleInfo = vkStructs::MultisampleStateCreateInfo();
+    const auto depthStencilInfo = vkStructs::DepthStencilStateCreateInfo();
+    const auto dynamicInfo = vkStructs::DynamicStateCreateInfo();
 
-    VkBufferImageCopy copyRegions{};
-    copyRegions.imageExtent.width = width;
-    copyRegions.imageExtent.height = height;
-    copyRegions.imageExtent.depth = 1;
-    copyRegions.imageSubresource = layers;
-    mp_deviceInstance->GetBufferImageManager().CopyBufferToImage(stagingHandles.buffer, copyRegions,
-                                                                 m_textureImageHandles.image);
+    std::vector<VkViewport> vecViewports{{0.0f, 0.0f, static_cast<float>(mp_deviceInstance->GetExtent().width),
+                                          static_cast<float>(mp_deviceInstance->GetExtent().height), 0.0f, 1.0f}};
+    std::vector<VkRect2D> vecScissors{{{0, 0}, mp_deviceInstance->GetExtent()}};
+    const auto viewportinfo = vkStructs::ViewportCreateInfo(vecViewports, vecScissors);
 
-    CImageLoader::FreeImage(imageData);
-    mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(stagingHandles);
+    std::vector<VkDescriptorSetLayout> vecLayouts{mp_deviceInstance->GetDescriptorSetLayout()};
+    const auto pipelineInfo = vkStructs::PipelineLayoutCreateInfo(vecLayouts);
+    VK_CHECK_RESULT(
+        vkCreatePipelineLayout(mp_deviceInstance->GetDevice(), &pipelineInfo, nullptr, &m_graphicsPipelineLayout))
+
+    const auto graphicsPipelineInfo = vkStructs::GraphicsPipelineCreateInfo(
+        vecShaderStages, vertexInputInfo, inputAssemblyInfo, tessellationInfo, viewportinfo, rasterizationInfo,
+        multisampleInfo, depthStencilInfo, colorBlendInfo, dynamicInfo, m_graphicsPipelineLayout,
+        mp_deviceInstance->GetRenderPass());
+
+    VK_CHECK_RESULT(vkCreateGraphicsPipelines(mp_deviceInstance->GetDevice(), VK_NULL_HANDLE, 1, &graphicsPipelineInfo,
+                                              nullptr, &m_graphicsPipeline))
+
+    vkDestroyShaderModule(mp_deviceInstance->GetDevice(), vertModule, nullptr);
+    vkDestroyShaderModule(mp_deviceInstance->GetDevice(), fragModule, nullptr);
 }
 
-void CGameObject::CreateTextureSampler()
-{
-    VkSamplerCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    createInfo.minFilter = VK_FILTER_LINEAR;
-    createInfo.magFilter = VK_FILTER_LINEAR;
-    createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    createInfo.minLod = 0.0f;
-    createInfo.maxLod = 0.0f;
-    createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    createInfo.mipLodBias = 0.0f;
-    createInfo.anisotropyEnable = VK_TRUE;
-    createInfo.maxAnisotropy = 16.0f;
-    createInfo.compareEnable = VK_FALSE;
-    createInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    createInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    createInfo.unnormalizedCoordinates = VK_FALSE;
-
-    if (const auto res = vkCreateSampler(mp_deviceInstance->GetDevice(), &createInfo, nullptr, &m_textureSampler);
-        res != VK_SUCCESS)
-        throw std::runtime_error("Failed to create sampler.");
-}
-
-void CGameObject::ObjectCleanup()
+void CLightObject::ObjectCleanup()
 {
     mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(m_vertexBufferHandles);
     mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(m_indexBufferHandles);
@@ -265,6 +236,6 @@ void CGameObject::ObjectCleanup()
     {
         mp_deviceInstance->GetBufferImageManager().DestroyBufferHandles(handle);
     }
-    vkDestroySampler(mp_deviceInstance->GetDevice(), m_textureSampler, nullptr);
-    mp_deviceInstance->GetBufferImageManager().DestroyImagesHandles(m_textureImageHandles);
+
+    CleanupGraphicsPipeline();
 }

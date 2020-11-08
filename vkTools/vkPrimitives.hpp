@@ -34,5 +34,13 @@ struct SMVP
     glm::mat4 view;
     glm::mat4 projection;
 };
+
+struct STransform
+{
+    glm::vec3 translate{1.0f};
+    glm::vec3 scale{1.0f};
+    glm::vec3 rotate{1.0f};
+};
+
 } // namespace vkPrimitives
 } // namespace vkTools
