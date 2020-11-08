@@ -1,7 +1,7 @@
 #pragma once
 #include "CBufferImageManager.hpp"
 #include "CDevice.hpp"
-#include "Primitives.hpp"
+#include "vkPrimitives.hpp"
 
 #include <glm/glm.hpp>
 #include <vector>
@@ -35,7 +35,7 @@ class CModel
 
     uint32_t GetVerticesSize() const
     {
-        return static_cast<uint32_t>(sizeof(SVertex) * m_mesh.vertices.size());
+        return static_cast<uint32_t>(sizeof(vkTools::vkPrimitives::SVertex) * m_mesh.vertices.size());
     }
     uint16_t GetIndicesSize() const
     {
@@ -85,7 +85,7 @@ class CModel
     SImageHandles m_textureImageHandles{};
     VkSampler m_textureSampler;
 
-    SMesh m_mesh;
-    SMVP m_mvp{};
+    vkTools::vkPrimitives::SMesh m_mesh;
+    vkTools::vkPrimitives::SMVP m_mvp{};
     SModelProps m_modelProps{};
 };

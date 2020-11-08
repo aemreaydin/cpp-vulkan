@@ -1,5 +1,7 @@
 #include "SGraphicsPipelineStates.hpp"
-#include "Primitives.hpp"
+#include "vkPrimitives.hpp"
+
+using namespace vkTools::vkPrimitives;
 
 SGraphicsPipelineStates::SGraphicsPipelineStates(const VkPipelineColorBlendAttachmentState &attachmentState,
                                                  const VkViewport &viewport, const VkRect2D &scissors,

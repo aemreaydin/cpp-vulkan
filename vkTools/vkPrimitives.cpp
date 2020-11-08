@@ -1,5 +1,9 @@
-#include "Primitives.hpp"
+#include "vkPrimitives.hpp"
 
+namespace vkTools
+{
+namespace vkPrimitives
+{
 VkVertexInputBindingDescription SVertex::GetInputBindingDescription()
 {
 
@@ -33,3 +37,5 @@ std::array<VkVertexInputAttributeDescription, 3> SVertex::GetAttributeBindingDes
 
     return {posDesc, texDesc, colorDesc};
 }
+} // namespace vkPrimitives
+} // namespace vkTools

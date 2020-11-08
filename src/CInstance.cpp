@@ -1,6 +1,7 @@
 #include "CInstance.hpp"
-
 #include "vkStructs.hpp"
+
+using namespace vkTools;
 
 CInstance::CInstance(GLFWwindow *window, SAppInfo appInfo) : m_appInfo(appInfo)
 {
@@ -16,13 +17,13 @@ void CInstance::CreateInstance()
     if (!CVulkanHelpers::CheckForVulkanLayers(m_appInfo.layers))
         throw std::runtime_error("Validation layers not available.");
 
-    const auto applicationInfo = vkTools::ApplicationInfo();
+    const auto applicationInfo = vkStructs::ApplicationInfo();
     const auto extensions = CVulkanHelpers::GetVulkanInstanceExtensions();
     VkDebugUtilsMessengerCreateInfoEXT debugInfo;
     CValidationLayer::PopulateDebugMessengerCreateInfo(debugInfo);
-    const auto instanceInfo = vkTools::InstanceCreateInfo(applicationInfo, extensions, m_appInfo.layers, debugInfo);
+    const auto instanceInfo = vkStructs::InstanceCreateInfo(applicationInfo, extensions, m_appInfo.layers, debugInfo);
 
-    VK_CHECK_RESULT(vkCreateInstance(&instanceInfo, nullptr, &m_instance));
+    VK_CHECK_RESULT(vkCreateInstance(&instanceInfo, nullptr, &m_instance))
 }
 
 void CInstance::CreateSurface(GLFWwindow *window)
@@ -30,7 +31,7 @@ void CInstance::CreateSurface(GLFWwindow *window)
     if (!window)
         throw std::runtime_error("Window doesn't exist, create it first.");
 
-    VK_CHECK_RESULT(glfwCreateWindowSurface(m_instance, window, nullptr, &m_surface));
+    VK_CHECK_RESULT(glfwCreateWindowSurface(m_instance, window, nullptr, &m_surface))
 }
 
 void CInstance::CreatePhysicalDevice()

@@ -2,6 +2,9 @@
 
 namespace vkTools
 {
+namespace vkStructs
+{
+
 VkApplicationInfo ApplicationInfo(const char *appName, uint32_t appVersion, const char *engineName,
                                   uint32_t engineVersion)
 {
@@ -33,4 +36,5 @@ VkInstanceCreateInfo InstanceCreateInfo(VkApplicationInfo applicationInfo,
     return instanceCreateInfo;
 }
 
+} // namespace vkStructs
 } // namespace vkTools

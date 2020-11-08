@@ -1,11 +1,13 @@
 #include "CDevice.hpp"
 #include "CBufferImageManager.hpp"
 #include "CShaderUtils.hpp"
-#include "Primitives.hpp"
 #include "SGraphicsPipelineStates.hpp"
+#include "vkPrimitives.hpp"
 #include <algorithm>
 #include <array>
 #include <iostream>
+
+using namespace vkTools;
 
 CDevice &CDevice::GetInstance()
 {
@@ -517,8 +519,8 @@ void CDevice::CreateGraphicsPipeline()
     scissors.extent = m_extent;
     scissors.offset = {0, 0};
 
-    const auto inputBindingsDesc = SVertex::GetInputBindingDescription();
-    const auto attributeDesc = SVertex::GetAttributeBindingDescription();
+    const auto inputBindingsDesc = vkPrimitives::SVertex::GetInputBindingDescription();
+    const auto attributeDesc = vkPrimitives::SVertex::GetAttributeBindingDescription();
     const auto graphicsPipelineStates =
         SGraphicsPipelineStates(attachmentState, viewport, scissors, inputBindingsDesc, attributeDesc);
     // Create the renderpass

@@ -1,4 +1,5 @@
 #pragma once
+
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 
@@ -6,6 +7,10 @@
 #include <iostream>
 #include <vector>
 
+namespace vkTools
+{
+namespace vkPrimitives
+{
 struct SVertex
 {
     glm::vec3 position;
@@ -29,3 +34,5 @@ struct SMVP
     glm::mat4 view;
     glm::mat4 projection;
 };
+} // namespace vkPrimitives
+} // namespace vkTools
