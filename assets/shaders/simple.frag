@@ -24,5 +24,6 @@ void main() {
     vec3 viewDir = normalize(-inPos);
     vec3 lightReflection = reflect(-normLightDir, normNormal);
     vec4 spcColor = pow(max(0.0, dot(viewDir, lightReflection)), 62) * vec4(1.0) * objColor;
-    outColor = ambColor + difColor + spcColor;
+    //    outColor = ambColor + difColor + spcColor;
+    outColor = objColor;
 }
