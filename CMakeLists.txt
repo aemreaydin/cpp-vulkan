@@ -37,6 +37,15 @@ include_directories(src)
 file(GLOB SRC "src/*.cpp")
 add_executable(${PROJECT_NAME} main.cpp ${SRC})
 target_link_libraries(${PROJECT_NAME} ${LIBS})
+target_sources(${PROJECT_NAME} PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/imgui/imgui.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/imgui/imgui.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/imgui/imgui_demo.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/imgui/imgui_draw.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/imgui/imgui_widgets.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/imgui/imgui_impl_vulkan.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/imgui/imgui_impl_glfw.cpp"
+        )
 
 # Copy assets to build
 #

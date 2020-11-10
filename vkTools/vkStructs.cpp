@@ -173,6 +173,51 @@ VkGraphicsPipelineCreateInfo GraphicsPipelineCreateInfo(
 
     return graphicsPipelineCreateInfo;
 }
+VkDescriptorPoolCreateInfo DescriptorPoolCreateInfo(uint32_t maxSets, std::vector<VkDescriptorPoolSize> &vecPoolSizes)
+{
+    VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{};
+    descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptorPoolCreateInfo.maxSets = maxSets;
+    descriptorPoolCreateInfo.poolSizeCount = vecPoolSizes.size();
+    descriptorPoolCreateInfo.pPoolSizes = vecPoolSizes.data();
+
+    return descriptorPoolCreateInfo;
+}
+VkCommandBufferAllocateInfo CommandBufferAllocateInfo(const VkCommandPool commandPool, uint32_t commandBufferCount,
+                                                      VkCommandBufferLevel level)
+{
+    VkCommandBufferAllocateInfo commandBufferAllocateInfo{};
+    commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    commandBufferAllocateInfo.commandPool = commandPool;
+    commandBufferAllocateInfo.level = level;
+    commandBufferAllocateInfo.commandBufferCount = commandBufferCount;
+
+    return commandBufferAllocateInfo;
+}
+VkCommandBufferBeginInfo CommandBufferBeginInfo(VkCommandBufferUsageFlags usageFlags)
+{
+    VkCommandBufferBeginInfo commandBufferBeginInfo{};
+    commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    commandBufferBeginInfo.flags = usageFlags;
+
+    return commandBufferBeginInfo;
+}
+VkSubmitInfo SubmitInfo(uint32_t cmdBufferCount, VkCommandBuffer &cmdBuffer,
+                        const std::vector<VkSemaphore> &vecWaitSemaphores,
+                        const std::vector<VkSemaphore> &vecSignalSemaphores, const VkPipelineStageFlags &flags)
+{
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = cmdBufferCount;
+    submitInfo.pCommandBuffers = &cmdBuffer;
+    submitInfo.waitSemaphoreCount = vecWaitSemaphores.size();
+    submitInfo.pWaitSemaphores = vecWaitSemaphores.data();
+    submitInfo.pWaitDstStageMask = &flags;
+    submitInfo.signalSemaphoreCount = vecSignalSemaphores.size();
+    submitInfo.pSignalSemaphores = vecSignalSemaphores.data();
+
+    return submitInfo;
+}
 
 } // namespace vkStructs
 } // namespace vkTools

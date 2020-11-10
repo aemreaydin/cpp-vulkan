@@ -87,6 +87,16 @@ class CDevice
         return *mp_bufferImageManager;
     }
 
+    GLFWwindow *GetWindow() const
+    {
+        return mp_window->Window();
+    }
+
+    const CInstance *GetVulkanInstance() const
+    {
+        return mp_instance;
+    }
+
     void InitDevice(CWindow *window, CInstance *vkInstance, CBufferImageManager *bufferImageManager, SAppInfo appInfo);
     bool DrawBegin();
     bool DrawEnd();

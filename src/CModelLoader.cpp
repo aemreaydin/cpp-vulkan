@@ -42,14 +42,17 @@ SMesh CModelLoader::LoadObjModel(std::string objFile)
                 auto vy = attrib.vertices[3 * ind.vertex_index + 1];
                 auto vz = attrib.vertices[3 * ind.vertex_index + 2];
 
+                auto nx = attrib.normals[3 * ind.normal_index + 0];
+                auto ny = attrib.normals[3 * ind.normal_index + 1];
+                auto nz = attrib.normals[3 * ind.normal_index + 2];
+
                 auto tx = attrib.texcoords[2 * ind.texcoord_index + 0];
                 auto ty = 1.0f - attrib.texcoords[2 * ind.texcoord_index + 1];
 
                 SVertex vertex{};
                 vertex.position = {vx, vy, vz};
+                vertex.normal = {nx, ny, nz};
                 vertex.uv = {tx, ty};
-                vertex.color = {(static_cast<double>(rand()) / (RAND_MAX)), (static_cast<double>(rand()) / (RAND_MAX)),
-                                (static_cast<double>(rand()) / (RAND_MAX))};
 
                 mesh.vertices[ind.vertex_index] = vertex;
                 mesh.indices[indexIndex++] = ind.vertex_index;

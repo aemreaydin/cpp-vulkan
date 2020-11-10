@@ -23,19 +23,19 @@ std::array<VkVertexInputAttributeDescription, 3> SVertex::GetAttributeBindingDes
     posDesc.format = VK_FORMAT_R32G32B32_SFLOAT;
     posDesc.offset = offsetof(SVertex, position);
 
+    VkVertexInputAttributeDescription normalDesc{};
+    normalDesc.binding = 0;
+    normalDesc.location = 1;
+    normalDesc.format = VK_FORMAT_R32G32B32_SFLOAT;
+    normalDesc.offset = offsetof(SVertex, normal);
+
     VkVertexInputAttributeDescription texDesc{};
     texDesc.binding = 0;
-    texDesc.location = 1;
+    texDesc.location = 2;
     texDesc.format = VK_FORMAT_R32G32_SFLOAT;
     texDesc.offset = offsetof(SVertex, uv);
 
-    VkVertexInputAttributeDescription colorDesc{};
-    colorDesc.binding = 0;
-    colorDesc.location = 2;
-    colorDesc.format = VK_FORMAT_R32G32B32_SFLOAT;
-    colorDesc.offset = offsetof(SVertex, color);
-
-    return {posDesc, texDesc, colorDesc};
+    return {posDesc, normalDesc, texDesc};
 }
 } // namespace vkPrimitives
 } // namespace vkTools

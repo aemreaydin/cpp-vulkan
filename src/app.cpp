@@ -1,5 +1,6 @@
 #include "app.hpp"
 #include "CImageLoader.hpp"
+#include <imgui.h>
 
 CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
 {
@@ -28,6 +29,8 @@ CApp::CApp(SAppInfo appInfo) : m_appInfo(appInfo)
     m_vecGameObjects.emplace_back(std::make_unique<CGameObject>(cubeProps));
 
     m_vecLightObjects.emplace_back(std::make_unique<CLightObject>());
+
+    mp_gui = std::make_unique<CGui>();
 }
 
 void CApp::Draw()
@@ -47,6 +50,8 @@ void CApp::Draw()
         gameObject->UpdateUniformBuffers();
         gameObject->Draw();
     }
+    // TODO This has to go after gameobjects because they're using the same render pass
+    mp_gui->Draw();
 
     for (auto &lightObject : m_vecLightObjects)
     {
@@ -84,5 +89,6 @@ void CApp::Cleanup()
     {
         lightObject->ObjectCleanup();
     }
+    mp_gui->Cleanup();
     m_deviceInstance->Cleanup();
 }

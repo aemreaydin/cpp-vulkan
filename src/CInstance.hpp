@@ -38,6 +38,21 @@ class CInstance
         return m_swapchainSupport;
     }
 
+    const VkInstance GetInstance() const
+    {
+        return m_instance;
+    }
+
+    const VkPhysicalDevice GetPhysicalDevice() const
+    {
+        return m_physicalDevice;
+    }
+
+    const VkSurfaceKHR GetSurface() const
+    {
+        return m_surface;
+    }
+
   private:
     std::vector<VkPhysicalDevice> FindPhysicalDevices();
     std::vector<VkQueueFamilyProperties> FindQueueFamiliesForDevice(const VkPhysicalDevice device);

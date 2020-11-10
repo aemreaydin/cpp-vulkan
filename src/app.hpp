@@ -11,6 +11,7 @@
 #include "CBufferImageManager.hpp"
 #include "CDevice.hpp"
 #include "CGameObject.hpp"
+#include "CGui.hpp"
 #include "CInstance.hpp"
 #include "CShaderUtils.hpp"
 #include "CValidationLayer.hpp"
@@ -28,6 +29,7 @@ class CApp
     std::unique_ptr<CWindow> mp_window;
     std::unique_ptr<CInstance> mp_instance;
     std::unique_ptr<CBufferImageManager> mp_bufferImageManager;
+    std::unique_ptr<CGui> mp_gui;
     CDevice *m_deviceInstance;
 
     std::vector<std::unique_ptr<CGameObject>> m_vecGameObjects{};

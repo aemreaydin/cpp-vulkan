@@ -43,5 +43,16 @@ VkGraphicsPipelineCreateInfo GraphicsPipelineCreateInfo(
     const VkPipelineDepthStencilStateCreateInfo &depthStencilInfo,
     const VkPipelineColorBlendStateCreateInfo &colorBlendInfo, const VkPipelineDynamicStateCreateInfo &dynamicInfo,
     const VkPipelineLayout &pipelineLayout, const VkRenderPass &renderPass, VkPipelineCreateFlags flags = 0);
+
+// Descriptors
+VkDescriptorPoolCreateInfo DescriptorPoolCreateInfo(uint32_t maxSets, std::vector<VkDescriptorPoolSize> &vecPoolSizes);
+// Command Buffers
+VkCommandBufferAllocateInfo CommandBufferAllocateInfo(const VkCommandPool commandPool, uint32_t commandBufferCount = 1,
+                                                      VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+VkCommandBufferBeginInfo CommandBufferBeginInfo(VkCommandBufferUsageFlags usageFlags);
+VkSubmitInfo SubmitInfo(uint32_t cmdBufferCount, VkCommandBuffer &cmdBuffer,
+                        const std::vector<VkSemaphore> &vecWaitSemaphores = {},
+                        const std::vector<VkSemaphore> &vecSignalSemaphores = {},
+                        const VkPipelineStageFlags &flags = 0);
 } // namespace vkStructs
 } // namespace vkTools
